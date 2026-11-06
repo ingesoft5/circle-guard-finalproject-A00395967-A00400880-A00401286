@@ -46,3 +46,18 @@ web-build/
 *_data/
 pgdata/
 neo4jdata/
+
+# Build
+**/bin/
+**/build/
+.gradle/   
+
+# Node / Expo
+node_modules/
+mobile/dist/
+mobile/.expo/
+
+# Secretos
+.env
+**/.env
+!**/.env.example
