@@ -1,0 +1,112 @@
+// Rollback básico de CircleGuard (CG-61).
+//
+// Job separado (Pipeline from SCM, script path: jenkins/Jenkinsfile.rollback).
+// Las imágenes son inmutables y están versionadas en Nexus, así que hacer
+// rollback = redesplegar una versión anterior que ya fue publicada. No se
+// reconstruye nada; tarda lo que tarda un 'docker compose up'.
+//
+// Limitación: Flyway solo avanza. Un rollback de la aplicación NO revierte el
+// esquema de la base de datos; por eso las migraciones deben ser compatibles
+// hacia atrás (expand/contract).
+
+@Library('circleguard-lib') _
+
+pipeline {
+    agent none
+
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '30'))
+    }
+
+    parameters {
+        choice(name: 'TARGET_ENV', choices: ['dev', 'stage', 'prod'],
+               description: 'Ambiente al que se le hace rollback')
+        string(name: 'ROLLBACK_VERSION', defaultValue: '', trim: true,
+               description: 'Versión ya publicada a la que se vuelve, p. ej. v1.0.0')
+        string(name: 'REASON', defaultValue: '', trim: true,
+               description: 'Motivo del rollback (queda en el log y en la notificación)')
+    }
+
+    stages {
+        stage('Validar') {
+            agent any
+            steps {
+                script {
+                    cgConfig.requireSemver(params.ROLLBACK_VERSION)
+                    if (!params.REASON) {
+                        error 'Indique el motivo del rollback (parámetro REASON).'
+                    }
+                    assertTagExists(params.ROLLBACK_VERSION)
+
+                    env.VERSION = params.ROLLBACK_VERSION
+                    env.PREVIOUS_VERSION = cgDeploy.currentVersion(params.TARGET_ENV)
+                    currentBuild.displayName = "#${env.BUILD_NUMBER} ${params.TARGET_ENV}: ${env.PREVIOUS_VERSION ?: '?'} -> ${env.VERSION}"
+                    echo "Rollback de ${params.TARGET_ENV}: ${env.PREVIOUS_VERSION ?: '(ninguna)'} -> ${env.VERSION}. Motivo: ${params.REASON}"
+                    if (env.PREVIOUS_VERSION == env.VERSION) {
+                        error "${params.TARGET_ENV} ya está en ${env.VERSION}."
+                    }
+                }
+            }
+        }
+
+        stage('Aprobación') {
+            when { expression { params.TARGET_ENV == 'prod' } }
+            steps {
+                timeout(time: 30, unit: 'MINUTES') {
+                    script {
+                        env.APPROVER = input(
+                            message: "¿Rollback de PRODUCCIÓN de ${env.PREVIOUS_VERSION ?: '?'} a ${env.VERSION}?",
+                            ok: 'Hacer rollback',
+                            submitter: cgConfig.prodApprovers(),
+                            submitterParameter: 'APPROVER'
+                        )
+                        echo "Rollback aprobado por: ${env.APPROVER}"
+                    }
+                }
+            }
+        }
+
+        stage('Rollback') {
+            agent any
+            steps {
+                cgDeploy(env: params.TARGET_ENV, version: env.VERSION)
+                script {
+                    String now = cgDeploy.currentVersion(params.TARGET_ENV)
+                    echo "Antes: ${env.PREVIOUS_VERSION ?: '(ninguna)'} | Después: ${now}"
+                    if (now != env.VERSION) {
+                        error "El ambiente reporta ${now}, se esperaba ${env.VERSION}."
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            script {
+                env.NOTIFY_DETAIL = "**Ambiente:** ${params.TARGET_ENV} (${env.PREVIOUS_VERSION ?: '?'} -> ${env.VERSION})\n**Motivo:** ${params.REASON}"
+                node { cgNotify('rollback') }
+            }
+        }
+        failure { node { cgNotify('failure') } }
+        aborted { node { cgNotify('aborted') } }
+    }
+}
+
+/** Falla si la versión no existe como tag en GitHub (nunca se publicó). */
+void assertTagExists(String version) {
+    withCredentials([usernamePassword(credentialsId: 'github-pat',
+                                      usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
+        withEnv(["REPO_SLUG=${cgConfig.repoSlug()}", "CHECK_TAG=${version}"]) {
+            int status = sh(returnStatus: true, script: '''
+                git ls-remote --exit-code --tags \
+                    "https://${GH_USER}:${GH_TOKEN}@github.com/${REPO_SLUG}.git" "refs/tags/${CHECK_TAG}" > /dev/null
+            ''')
+            if (status != 0) {
+                error "La versión ${version} no existe como tag en GitHub: no hay imágenes publicadas para ella."
+            }
+        }
+    }
+}
