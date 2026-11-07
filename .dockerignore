@@ -1,0 +1,33 @@
+# Contexto de build = raíz del repo. Se excluye todo lo que el build de Gradle
+# de los servicios no necesita, para que el contexto sea pequeño y no se
+# filtren secretos ni artefactos locales a las capas de la imagen.
+
+# Control de versiones
+.git
+.gitignore
+
+# Salidas de compilación y cachés locales
+.gradle
+**/build
+**/bin
+
+# Cliente web y pruebas externas (no forman parte de las imágenes de servicios)
+**/node_modules
+mobile/
+tests/
+
+# Documentación, diseño y archivos de trabajo
+design-assets/
+scratch/
+docs/
+.agent/
+*.pdf
+*.tex
+
+# IDEs y logs
+.idea/
+.vscode/
+**/*.log
+
+# Variables de entorno locales (pueden contener secretos)
+**/.env
