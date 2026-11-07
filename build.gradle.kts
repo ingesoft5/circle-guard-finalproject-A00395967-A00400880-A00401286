@@ -71,12 +71,46 @@ subprojects {
 
     // JaCoCo: reporte XML que publica Jenkins (Coverage) y que lee SonarQube.
     apply(plugin = "jacoco")
+    // Exclusiones de cobertura (CG-35), documentadas en docs/pruebas/cobertura.md:
+    // clase main de Spring Boot, configuración (beans y seguridad), DTO y
+    // entidades/modelos. No tienen lógica de negocio propia; la lógica vive en
+    // servicios, controladores, listeners y filtros, que sí se miden.
+    val coverageExclusions = listOf(
+        "**/*Application*", "**/config/**", "**/dto/**", "**/model/**",
+    )
     tasks.named<JacocoReport>("jacocoTestReport") {
         dependsOn(tasks.named("test"))
         reports {
             xml.required.set(true)
             html.required.set(true)
         }
+        classDirectories.setFrom(files(classDirectories.files.map {
+            fileTree(it) { exclude(coverageExclusions) }
+        }))
+    }
+
+    // Meta de E1.6 impuesta por el build y no solo reportada: en los 5 servicios
+    // núcleo, 'check' falla si la cobertura de líneas baja de 60 %.
+    val coreServices = setOf(
+        "circleguard-auth-service", "circleguard-identity-service", "circleguard-promotion-service",
+        "circleguard-form-service", "circleguard-gateway-service",
+    )
+    if (project.name in coreServices) {
+        val verify = tasks.named<JacocoCoverageVerification>("jacocoTestCoverageVerification") {
+            dependsOn(tasks.named("jacocoTestReport"))
+            classDirectories.setFrom(files(classDirectories.files.map {
+                fileTree(it) { exclude(coverageExclusions) }
+            }))
+            violationRules {
+                rule {
+                    limit {
+                        counter = "LINE"
+                        minimum = "0.60".toBigDecimal()
+                    }
+                }
+            }
+        }
+        tasks.named("check") { dependsOn(verify) }
     }
 
     // SonarQube: un proyecto por servicio. El pipeline pasa -PsonarService y
