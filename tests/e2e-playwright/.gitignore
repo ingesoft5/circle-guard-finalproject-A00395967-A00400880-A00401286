@@ -1,0 +1,6 @@
+node_modules/
+.npm/
+results/
+playwright-report/
+test-results/
+blob-report/
