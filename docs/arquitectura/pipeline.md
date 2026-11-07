@@ -77,6 +77,16 @@ Los tres ambientes reciben **la misma imagen con la misma versión** (*build onc
 
 **Ejecución selectiva solo para validar.** En un PR se compilan, prueban y analizan solo los servicios que cambiaron, comparando contra la rama destino. En `main` se compara contra el último build exitoso. Un cambio global (Gradle raíz, `Jenkinsfile`, `jenkins/`) o el parámetro `BUILD_ALL` construye todo.
 
+Cómo decide `cgChangedServices` qué construir:
+
+| Situación | Contra qué compara | Qué se construye |
+|---|---|---|
+| PR | `merge-base` entre el PR y su rama destino. El clon de un PR solo trae la rama del PR, así que el pipeline descarga `origin/<destino>` con la credencial de GitHub antes de comparar | Solo los servicios con archivos en `services/<servicio>/` y el cliente web si cambió `mobile/` |
+| `main` | Último build exitoso de `main` | Igual que en un PR |
+| Primer build o sin referencia | No hay con qué comparar | Todo, por seguridad |
+| Cambio global o `BUILD_ALL` | No aplica | Todo |
+| Solo documentación (`docs/`, `*.md`) | Igual que en un PR | Nada: las etapas de compilación, pruebas y Sonar se saltan y el build queda en verde |
+
 **En `main` se publican todas las imágenes.** Si solo cambió `auth`, igual se publican los 8 servicios y el cliente con la nueva versión, porque el compose de cada ambiente usa una sola `VERSION` para todos los servicios. Si solo se publicara `auth:v1.1.0`, la imagen `identity:v1.1.0` no existiría y el despliegue fallaría. Una versión es un release completo del sistema. La alternativa (una variable de versión por servicio) es más fina, pero mucho más difícil de operar y de revertir.
 
 **Sin cambios publicables no hay release.** Un merge con solo `docs`, `chore`, `ci` o `test` pasa la CI, pero no genera versión, imágenes ni despliegue.
