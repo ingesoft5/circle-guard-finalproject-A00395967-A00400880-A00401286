@@ -45,6 +45,11 @@ List<String> call(Map args = [:]) {
 String resolveBase() {
     if (env.CHANGE_TARGET) {
         String target = "origin/${env.CHANGE_TARGET}"
+        if (sh(script: "git rev-parse --verify --quiet ${target}", returnStatus: true) != 0) {
+            // El clon de un PR solo trae la rama del PR: hay que traer la rama destino.
+            echo "Trayendo ${target} para comparar el PR contra su rama destino."
+            fetchBranch(env.CHANGE_TARGET)
+        }
         if (sh(script: "git rev-parse --verify --quiet ${target}", returnStatus: true) == 0) {
             return sh(script: "git merge-base ${target} HEAD", returnStdout: true).trim()
         }
@@ -57,6 +62,19 @@ String resolveBase() {
         return previous
     }
     return null
+}
+
+/** Trae una rama de GitHub como origin/<rama> (el repo es privado: usa github-pat). */
+void fetchBranch(String branch) {
+    withCredentials([usernamePassword(credentialsId: 'github-pat',
+                                      usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
+        withEnv(["REPO_SLUG=${cgConfig.repoSlug()}", "FETCH_BRANCH=${branch}"]) {
+            sh '''
+                git fetch --quiet --no-tags "https://${GH_USER}:${GH_TOKEN}@github.com/${REPO_SLUG}.git" \
+                    "+refs/heads/${FETCH_BRANCH}:refs/remotes/origin/${FETCH_BRANCH}"
+            '''
+        }
+    }
 }
 
 boolean isGlobal(String file) {
