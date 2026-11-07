@@ -19,6 +19,14 @@ spring:
       password: password
   kafka:
     bootstrap-servers: localhost:9092
+    # Sin esto el KafkaTemplate usa StringSerializer y cada send() de un Map falla con
+    # SerializationException: promotion.status.changed, alert.priority y circle.fenced
+    # nunca salían. notification-service los lee como texto JSON (StringDeserializer).
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
     consumer:
       group-id: promotion-service-group
       auto-offset-reset: earliest
