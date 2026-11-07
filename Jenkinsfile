@@ -179,7 +179,8 @@ pipeline {
 
 /** Servicios backend detectados, como lista. */
 List<String> services() {
-    return env.SERVICES ? env.SERVICES.split(',') as List : []
+    // tokenize (y no split + 'as List') para no requerir aprobación de script en el sandbox.
+    return env.SERVICES ? env.SERVICES.tokenize(',') : []
 }
 
 /** true si este build de main produce un release (hay una versión nueva). */
