@@ -67,6 +67,9 @@ subprojects {
         classpath = testSourceSet.runtimeClasspath
         useJUnitPlatform { includeTags("integration") }
         shouldRunAfter(tasks.named("test"))
+        // Docker Engine 29+ rechaza la API 1.32 que usa por defecto el docker-java de
+        // Testcontainers 1.19 (responde 400 y "Could not find a valid Docker environment").
+        systemProperty("api.version", "1.44")
     }
 
     // JaCoCo: reporte XML que publica Jenkins (Coverage) y que lee SonarQube.

@@ -23,7 +23,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 // Usa Neo4j real (Testcontainers): necesita Docker, así que corre en la etapa
 // de integración del pipeline (./gradlew integrationTest), no en "test".
 @Tag("integration")
-@SpringBootTest
+// PostgreSQL real vía la URL JDBC de Testcontainers (Flyway corre las migraciones).
+@SpringBootTest(properties = {
+        "spring.datasource.url=jdbc:tc:postgresql:16-alpine:///promotion",
+        "spring.datasource.driver-class-name=org.testcontainers.jdbc.ContainerDatabaseDriver"
+})
 @Testcontainers
 public class AdministrativeCorrectionTest {
 

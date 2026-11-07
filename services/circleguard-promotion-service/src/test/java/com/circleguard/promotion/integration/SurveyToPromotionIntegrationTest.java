@@ -1,7 +1,13 @@
 package com.circleguard.promotion.integration;
 
 import com.circleguard.promotion.repository.jpa.SystemSettingsRepository;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -29,6 +35,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -149,6 +157,41 @@ class SurveyToPromotionIntegrationTest {
         // El estado también queda en Redis, que es lo que consulta gateway-service en la portería.
         assertThat(redis.opsForValue().get(STATUS_KEY_PREFIX + student)).isEqualTo("SUSPECT");
         assertThat(redis.opsForValue().get(STATUS_KEY_PREFIX + contact)).isEqualTo("PROBABLE");
+    }
+
+    @Test
+    @DisplayName("El cambio de estado sale a promotion.status.changed como lo lee notification-service")
+    void surveyWithSymptoms_publishesStatusChangeForNotificationService() throws Exception {
+        String student = UUID.randomUUID().toString();
+        createUser(student, "ACTIVE");
+
+        // Consumidor con la configuración de notification-service: StringDeserializer
+        // y luego ObjectMapper.readTree (ExposureNotificationListener).
+        try (KafkaConsumer<String, String> notification = new KafkaConsumer<>(Map.of(
+                ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, KAFKA.getBootstrapServers(),
+                ConsumerConfig.GROUP_ID_CONFIG, "notification-contract-" + student,
+                ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest",
+                ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
+                ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class))) {
+            notification.subscribe(List.of("promotion.status.changed"));
+
+            publishSurvey(student, true);
+
+            List<ConsumerRecord<String, String>> forStudent = new ArrayList<>();
+            await().atMost(TIMEOUT).untilAsserted(() -> {
+                notification.poll(Duration.ofMillis(500)).forEach(r -> {
+                    if (student.equals(r.key())) forStudent.add(r);
+                });
+                assertThat(forStudent).isNotEmpty();
+            });
+
+            JsonNode event = new ObjectMapper().readTree(forStudent.get(0).value());
+            assertThat(event.path("anonymousId").asText()).isEqualTo(student);
+            assertThat(event.path("status").asText()).isEqualTo("SUSPECT");
+        }
+        // Usuario SIN contactos: su estado también debe llegar a Redis, o el gateway
+        // lo dejaría entrar al campus (antes de la corrección de la consulta no llegaba).
+        assertThat(redis.opsForValue().get(STATUS_KEY_PREFIX + student)).isEqualTo("SUSPECT");
     }
 
     @Test
