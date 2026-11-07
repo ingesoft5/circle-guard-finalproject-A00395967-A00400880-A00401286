@@ -1,0 +1,111 @@
+# Servidor de herramientas de CircleGuard (CG-31, CG-32): Jenkins, SonarQube y Nexus.
+#
+# Lo levanta infra/bootstrap/bootstrap-tools.sh; no hace falta tocarlo a mano.
+# Las credenciales vienen del .env (fuera del repo, ver .env.example).
+#
+# Puertos:
+#   8080  Jenkins (webhook de GitHub)
+#   9000  SonarQube
+#   8081  Nexus (UI y API)
+#   8082  Nexus: conector HTTP del repositorio Docker "circleguard"
+#
+# Versiones fijas (nunca latest): reconstruir dentro de un mes da lo mismo que hoy.
+name: cg-tools
+
+services:
+  jenkins:
+    # La imagen de Simón (CG-48): Jenkins LTS + Docker CLI + git-cliff + jq + ssh + plugins.
+    build: ../../../jenkins/local
+    image: circleguard/jenkins:tools
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    # GID del grupo docker del host, para usar el socket sin correr como root.
+    group_add:
+      - "${DOCKER_GID:?falta DOCKER_GID}"
+    environment:
+      JAVA_OPTS: "-Xmx${JENKINS_HEAP:-1g} -Djenkins.install.runSetupWizard=true"
+      # Testcontainers crea contenedores hermanos en el Docker del host.
+      TESTCONTAINERS_HOST_OVERRIDE: host.docker.internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      # Control del Docker del host (equivale a root en el host). Trade-off aceptado
+      # en la Parte 1 porque solo el equipo usa Jenkins; Parte 2: agentes efímeros.
+      - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/login"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+      start_period: 120s
+
+  sonar-db:
+    image: postgres:16.4-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${SONAR_DB_USER:?falta SONAR_DB_USER}
+      POSTGRES_PASSWORD: ${SONAR_DB_PASSWORD:?falta SONAR_DB_PASSWORD}
+      POSTGRES_DB: sonar
+    volumes:
+      - sonar_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d sonar"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  sonarqube:
+    # PostgreSQL y no H2: la base embebida solo sirve para evaluar; no permite
+    # actualizar de versión ni conservar el histórico.
+    image: sonarqube:10.7.0-community
+    restart: unless-stopped
+    depends_on:
+      sonar-db:
+        condition: service_healthy
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://sonar-db:5432/sonar
+      SONAR_JDBC_USERNAME: ${SONAR_DB_USER}
+      SONAR_JDBC_PASSWORD: ${SONAR_DB_PASSWORD}
+    ports:
+      - "9000:9000"
+    volumes:
+      - sonar_data:/opt/sonarqube/data
+      - sonar_extensions:/opt/sonarqube/extensions
+      - sonar_logs:/opt/sonarqube/logs
+    ulimits:
+      nofile: { soft: 131072, hard: 131072 }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9000/api/system/status | grep -q '\"status\":\"UP\"'"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 90s
+
+  nexus:
+    image: sonatype/nexus3:3.70.1
+    restart: unless-stopped
+    environment:
+      INSTALL4J_ADD_VM_PARAMS: "-Xms${NEXUS_HEAP:-1g} -Xmx${NEXUS_HEAP:-1g} -XX:MaxDirectMemorySize=1g"
+    ports:
+      - "8081:8081"
+      - "8082:8082"   # conector HTTP del repo Docker (lo crea nexus-setup.sh)
+    volumes:
+      - nexus_data:/nexus-data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8081/service/rest/v1/status"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 120s
+
+# Volúmenes con nombre: si se borra un contenedor, los jobs de Jenkins, el
+# análisis de Sonar y las imágenes de Nexus sobreviven.
+volumes:
+  jenkins_home: {}
+  sonar_db: {}
+  sonar_data: {}
+  sonar_extensions: {}
+  sonar_logs: {}
+  nexus_data: {}
