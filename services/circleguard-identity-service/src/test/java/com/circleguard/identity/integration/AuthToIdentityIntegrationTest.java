@@ -62,9 +62,6 @@ class AuthToIdentityIntegrationTest {
         r.add("spring.jpa.database-platform", () -> "org.hibernate.dialect.PostgreSQLDialect");
         r.add("spring.jpa.hibernate.ddl-auto", () -> "none");   // el esquema lo crea Flyway
         r.add("spring.flyway.enabled", () -> "true");
-        // El jar de auth-service (por IdentityClient) también trae db/migration en el
-        // classpath; se fijan solo las migraciones de identity para no mezclarlas.
-        r.add("spring.flyway.locations", () -> "filesystem:src/main/resources/db/migration");
     }
 
     @MockBean

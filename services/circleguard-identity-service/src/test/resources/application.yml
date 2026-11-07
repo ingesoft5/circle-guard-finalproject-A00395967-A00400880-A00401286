@@ -24,3 +24,8 @@ vault:
 # "${jwt.secret}" (13 bytes = 104 bits) y jjwt lo rechaza por ser < 256 bits.
 jwt:
   secret: "test-only-jwt-secret-with-at-least-32-bytes!!"
+
+# Las pruebas de integración ponen el jar de auth-service en el classpath (para usar
+# su IdentityClient) y ese jar trae sus propias migraciones en db/migration. Se fija la
+# carpeta de identity para que Flyway no mezcle las dos ("more than one migration V1").
+spring.flyway.locations: filesystem:src/main/resources/db/migration
