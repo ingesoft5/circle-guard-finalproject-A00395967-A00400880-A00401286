@@ -6,6 +6,7 @@ import com.circleguard.promotion.repository.graph.CircleNodeRepository;
 import com.circleguard.promotion.repository.graph.UserNodeRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -19,6 +20,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+// Usa Neo4j real (Testcontainers): necesita Docker, así que corre en la etapa
+// de integración del pipeline (./gradlew integrationTest), no en "test".
+@Tag("integration")
 @SpringBootTest
 @Testcontainers
 public class AdministrativeCorrectionTest {
