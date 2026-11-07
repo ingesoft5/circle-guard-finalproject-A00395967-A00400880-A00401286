@@ -4,7 +4,12 @@ plugins {
     kotlin("jvm") version "1.9.24" apply false
     kotlin("plugin.spring") version "1.9.24" apply false
     kotlin("plugin.jpa") version "1.9.24" apply false
+    id("org.sonarqube") version "5.1.0.4882"
 }
+
+// Servicio a analizar con SonarQube: ./gradlew sonar -PsonarService=<servicio>
+// Sin la propiedad se analizan todos los servicios como un solo proyecto.
+val sonarService = findProperty("sonarService") as String?
 
 allprojects {
     group = "com.circleguard"
@@ -45,5 +50,40 @@ subprojects {
 
     tasks.withType<Test> {
         useJUnitPlatform()
+    }
+
+    // --- CI/CD (Jenkins) ---------------------------------------------------
+    // Pruebas de integración: las marcadas con @Tag("integration") (usan
+    // Testcontainers y necesitan Docker). 'test' las excluye para que las
+    // unitarias sigan siendo rápidas; 'integrationTest' corre solo esas.
+    tasks.named<Test>("test") {
+        useJUnitPlatform { excludeTags("integration") }
+    }
+    val testSourceSet = the<SourceSetContainer>()["test"]
+    tasks.register<Test>("integrationTest") {
+        description = "Pruebas de integración entre servicios (@Tag(\"integration\"))."
+        group = "verification"
+        testClassesDirs = testSourceSet.output.classesDirs
+        classpath = testSourceSet.runtimeClasspath
+        useJUnitPlatform { includeTags("integration") }
+        shouldRunAfter(tasks.named("test"))
+    }
+
+    // JaCoCo: reporte XML que publica Jenkins (Coverage) y que lee SonarQube.
+    apply(plugin = "jacoco")
+    tasks.named<JacocoReport>("jacocoTestReport") {
+        dependsOn(tasks.named("test"))
+        reports {
+            xml.required.set(true)
+            html.required.set(true)
+        }
+    }
+
+    // SonarQube: un proyecto por servicio. El pipeline pasa -PsonarService y
+    // -Dsonar.projectKey=circleguard-<servicio>; los demás módulos se omiten.
+    if (sonarService != null) {
+        extensions.configure<org.sonarqube.gradle.SonarExtension>("sonar") {
+            isSkipProject = project.name != sonarService
+        }
     }
 }

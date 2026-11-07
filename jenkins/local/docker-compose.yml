@@ -1,0 +1,35 @@
+# Jenkins local para desarrollar y probar el pipeline antes de tener el
+# servidor de herramientas.
+#
+#   cd jenkins/local
+#   docker compose up -d --build
+#   docker compose exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword
+#   -> http://localhost:8080
+#
+# Montar /var/run/docker.sock le da a los jobs control total del Docker del
+# host (equivale a root). Se acepta en la Parte 1 porque solo el equipo usa
+# Jenkins; en la Parte 2 se reemplaza por agentes efímeros / Kaniko / rootless.
+services:
+  jenkins:
+    build: .
+    image: circleguard/jenkins:local
+    container_name: circleguard-jenkins
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    # GID del grupo dueño del socket de Docker. En Docker Desktop es 0 (root);
+    # en Linux: DOCKER_GID=$(getent group docker | cut -d: -f3) docker compose up -d
+    group_add:
+      - "${DOCKER_GID:-0}"
+    environment:
+      # Testcontainers corre dentro de este contenedor y crea contenedores
+      # hermanos en el Docker del host; así sabe cómo llegar a ellos.
+      TESTCONTAINERS_HOST_OVERRIDE: "${TESTCONTAINERS_HOST_OVERRIDE:-host.docker.internal}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  jenkins_home:

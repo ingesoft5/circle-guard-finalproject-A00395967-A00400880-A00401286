@@ -1,0 +1,22 @@
+# Plugins que usa el pipeline de CircleGuard (CG-48).
+# Pipeline declarativo, multibranch y Shared Library
+workflow-aggregator
+workflow-multibranch
+pipeline-stage-view
+pipeline-utility-steps
+# GitHub: branch source (descubre ramas y PR, webhook) y git
+github-branch-source
+git
+# Credenciales y SSH
+credentials-binding
+ssh-agent
+# Calidad: SonarQube, JUnit, cobertura JaCoCo (plugin Coverage) y reportes HTML
+sonar
+junit
+coverage
+htmlpublisher
+# Agentes Docker (Playwright, Node)
+docker-workflow
+# Utilidades
+timestamper
+ws-cleanup
