@@ -30,4 +30,7 @@ dependencies {
     testImplementation("org.testcontainers:junit-jupiter:1.19.3")
     testImplementation("org.testcontainers:postgresql:1.19.3")
     testImplementation("org.testcontainers:neo4j:1.19.3")
+    // CG-41: integración form -> Kafka -> promotion con un broker real
+    testImplementation("org.testcontainers:kafka:1.19.3")
+    testImplementation("org.awaitility:awaitility")
 }
