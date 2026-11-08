@@ -23,7 +23,8 @@ test.describe('Validación de acceso al campus', () => {
     expect(qrToken, 'auth-service emite un token QR').toBeTruthy();
 
     // La pantalla principal dibuja el QR (react-native-qrcode-svg -> <svg>).
-    await expect(page.locator('svg').first()).toBeVisible();
+    // El primer <svg> de la página es el fondo decorativo (oculto): solo los visibles.
+    await expect(page.locator('svg').locator('visible=true').first()).toBeVisible();
 
     const gate = await request.post(`${api.gate}/validate`, { data: { token: qrToken } });
     expect(gate.ok()).toBeTruthy();

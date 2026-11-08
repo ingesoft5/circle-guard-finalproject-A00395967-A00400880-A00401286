@@ -45,7 +45,7 @@ test.describe('Cuestionario de salud', () => {
     const session = await login(page);
 
     await page.goto('/questionnaire');
-    await expect(page.getByText('Health Screening')).toBeVisible();
+    await expect(page.getByText('Health Screening', { exact: true })).toBeVisible();
     await expect(page.getByText('¿Tiene fiebre?')).toBeVisible();
 
     await page.getByText('NO', { exact: true }).click();
@@ -66,7 +66,7 @@ test.describe('Cuestionario de salud', () => {
 
     // La app vuelve a la pantalla principal.
     await expect(page).not.toHaveURL(/questionnaire/);
-    await expect(page.getByText('STATUS')).toBeVisible();
+    await expect(page.getByText('STATUS').locator('visible=true').first()).toBeVisible();
   });
 
   test('el cuestionario activo es el que se respondió', async ({ request }) => {
