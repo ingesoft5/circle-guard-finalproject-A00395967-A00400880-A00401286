@@ -127,10 +127,18 @@ subprojects {
     }
 
     // SonarQube: un proyecto por servicio. El pipeline pasa -PsonarService y
-    // -Dsonar.projectKey=circleguard-<servicio>; los demás módulos se omiten.
-    if (sonarService != null) {
-        extensions.configure<org.sonarqube.gradle.SonarExtension>("sonar") {
-            isSkipProject = project.name != sonarService
+    // -Dsonar.projectKey=circleguard-<servicio>; los demás servicios se omiten.
+    // Solo se omiten hojas: el proyecto intermedio :services NO se omite, porque
+    // omitirlo omite también a todos sus hijos y Sonar termina analizando solo
+    // los dos .kts de la raíz (0 líneas de Java: el gate siempre daba OK).
+    extensions.configure<org.sonarqube.gradle.SonarExtension>("sonar") {
+        if (sonarService != null) {
+            isSkipProject = project.subprojects.isEmpty() && project.name != sonarService
+        }
+        properties {
+            // Mismas exclusiones que JaCoCo, para que la cobertura de Sonar y la
+            // del build midan lo mismo.
+            property("sonar.coverage.exclusions", coverageExclusions.joinToString(","))
         }
     }
 }

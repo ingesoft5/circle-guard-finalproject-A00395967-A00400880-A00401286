@@ -3,8 +3,9 @@
 # Idempotente: cada paso consulta antes de crear.
 #
 #   1. Cambia la contraseña por defecto (admin/admin) por SONAR_ADMIN_PASSWORD.
-#   2. Crea el quality gate "CircleGuard" y lo deja por defecto:
-#        cobertura en código nuevo >= 60 %, 0 bugs bloqueantes, 0 vulnerabilidades.
+#   2. Crea el quality gate "CircleGuard" y lo deja por defecto. Todo sobre
+#      CÓDIGO NUEVO: cobertura >= 60 %, 0 problemas bloqueantes, 0 vulnerabilidades.
+#      Define "código nuevo" como lo cambiado en los últimos 30 días.
 #   3. Crea el webhook hacia Jenkins (sin él, waitForQualityGate se queda esperando).
 #   4. Genera el token de análisis para Jenkins y lo guarda en
 #      $TOKEN_FILE (chmod 600). Sonar solo lo muestra una vez.
@@ -43,10 +44,13 @@ fi
 # SonarQube 10 crea los gates nuevos con las condiciones "Clean as You Code"
 # (new_violations > 0, cobertura 80 %, duplicación 3 %, hotspots 100 %). La
 # política del equipo es otra, así que se crean, ajustan o borran las necesarias.
+# Las tres sobre código nuevo ("Clean as You Code"): el código heredado del
+# proyecto base (p. ej. 2 bloqueantes S2229 en promotion) no bloquea, pero
+# nada nuevo puede empeorarlo.
 DESIRED=(
-  "new_coverage LT 60"          # cobertura en código nuevo >= 60 %
-  "blocker_violations GT 0"     # 0 problemas bloqueantes
-  "vulnerabilities GT 0"        # 0 vulnerabilidades
+  "new_coverage LT 60"              # cobertura en código nuevo >= 60 %
+  "new_blocker_violations GT 0"     # 0 problemas bloqueantes nuevos
+  "new_vulnerabilities GT 0"        # 0 vulnerabilidades nuevas
 )
 if s GET "/api/qualitygates/show?name=$GATE" &>/dev/null; then
   ok "Quality gate '$GATE' ya existe"
@@ -79,6 +83,19 @@ for id_metric in $(jq -r '.[] | .id + ":" + .metric' <<<"$current"); do
 done
 s POST /api/qualitygates/set_as_default --data-urlencode "name=$GATE" >/dev/null
 ok "Quality gate por defecto: $GATE"
+
+# Código nuevo = lo cambiado en los últimos 30 días (global). Con el valor por
+# defecto, "versión anterior", y la versión de Gradle fija en 1.0.0-SNAPSHOT,
+# Sonar nunca ve código nuevo y las tres condiciones de arriba no se evalúan.
+# La línea base es el primer análisis dentro de la ventana, así que el código
+# heredado (anterior al primer análisis) no cuenta como nuevo.
+NEW_CODE_DAYS=30
+if [[ $(s GET /api/new_code_periods/show | jq -r '.type + " " + (.value // "")') == "NUMBER_OF_DAYS $NEW_CODE_DAYS" ]]; then
+  ok "Código nuevo: últimos $NEW_CODE_DAYS días"
+else
+  log "Definiendo código nuevo: últimos $NEW_CODE_DAYS días"
+  s POST /api/new_code_periods/set --data-urlencode type=NUMBER_OF_DAYS --data-urlencode "value=$NEW_CODE_DAYS" >/dev/null
+fi
 
 # 3. Webhook hacia Jenkins
 hook="$JENKINS_URL/sonarqube-webhook/"
