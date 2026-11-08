@@ -9,6 +9,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.neo4j.core.Neo4jClient;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Neo4jContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -20,7 +21,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 // Usa Neo4j real (Testcontainers): necesita Docker, así que corre en la etapa
 // de integración del pipeline (./gradlew integrationTest), no en "test".
 @Tag("integration")
-@SpringBootTest
+// PostgreSQL real vía la URL JDBC de Testcontainers (Flyway corre las migraciones).
+@SpringBootTest(properties = {
+        "spring.datasource.url=jdbc:tc:postgresql:16-alpine:///promotion",
+        "spring.datasource.driver-class-name=org.testcontainers.jdbc.ContainerDatabaseDriver"
+})
 @Testcontainers
 public class PromotionPerformanceTest {
 
@@ -28,8 +33,14 @@ public class PromotionPerformanceTest {
     static Neo4jContainer<?> neo4jContainer = new Neo4jContainer<>("neo4j:5.12")
             .withAdminPassword("password");
 
+    // updateStatus/resolveStatus sincronizan el estado en Redis (lo lee gateway-service).
+    @Container
+    static GenericContainer<?> redis = new GenericContainer<>("redis:7.2-alpine").withExposedPorts(6379);
+
     @DynamicPropertySource
     static void neo4jProperties(DynamicPropertyRegistry registry) {
+        registry.add("spring.data.redis.host", redis::getHost);
+        registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
         registry.add("spring.neo4j.uri", neo4jContainer::getBoltUrl);
         registry.add("spring.neo4j.authentication.username", () -> "neo4j");
         registry.add("spring.neo4j.authentication.password", () -> "password");

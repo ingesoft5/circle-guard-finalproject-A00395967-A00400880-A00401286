@@ -24,4 +24,9 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.kafka:spring-kafka-test")
     testImplementation("org.springframework.security:spring-security-test")
+    // CG-42: integración auth -> identity. Usa el IdentityClient real de auth-service
+    // contra este servicio completo y un PostgreSQL real (Testcontainers).
+    testImplementation(project(":services:circleguard-auth-service")) { isTransitive = false }
+    testImplementation("org.testcontainers:junit-jupiter:1.19.3")
+    testImplementation("org.testcontainers:postgresql:1.19.3")
 }
