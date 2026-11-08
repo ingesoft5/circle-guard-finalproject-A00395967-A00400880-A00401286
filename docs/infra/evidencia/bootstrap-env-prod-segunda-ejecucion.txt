@@ -1,20 +1,21 @@
-[03:13:18] Preparando ambiente 'prod' en cg-prod
-[03:13:18] ✓ Paquetes ya instalados: ca-certificates curl jq openssl
-[03:13:18] ✓ Docker ya instalado (Docker version 29.9.3)
-[03:13:18] ✓ Swap ya configurada
-[03:13:18] ✓ Usuario deploy ya existe
-[03:13:18] ✓ deploy ya pertenece a docker
-[03:13:18] ✓ Llave de Jenkins ya autorizada
-[03:13:18] ✓ Paquetes ya instalados: jq
-[03:13:18] ✓ Registro 20.230.211.66:8082 ya está en insecure-registries
-[03:13:18] ✓ deploy ya tiene docker login en 20.230.211.66:8082
-[03:13:18] ✓ /opt/circleguard/init-db.sql ya está al día
-[03:13:18] ! No existe deploy/docker-compose.yml (¿ya se fusionó el PR del compose de Luis?)
-[03:13:18] ! No existe deploy/prod/docker-compose.override.yml (¿ya se fusionó el PR del compose de Luis?)
-[03:13:18] ✓ .env de prod ya existe (no se regeneran secretos)
-[03:13:18] ✓ Paquetes ya instalados: ufw
-[03:13:18] ✓ ufw ya activo
-[03:13:18] ✓ deploy puede usar Docker
+[19:03:58] Preparando ambiente 'prod' en cg-prod
+[19:03:58] ✓ Paquetes ya instalados: ca-certificates curl jq openssl
+[19:03:58] ✓ Docker ya instalado (Docker version 29.9.3)
+[19:03:58] ✓ Swap ya configurada
+[19:03:58] ✓ Usuario deploy ya existe
+[19:03:58] ✓ deploy ya pertenece a docker
+[19:03:58] ✓ Llave de Jenkins ya autorizada
+[19:03:58] ✓ Paquetes ya instalados: jq
+[19:03:58] ✓ Registro 20.230.211.66:8082 ya está en insecure-registries
+[19:03:58] ✓ deploy ya tiene docker login en 20.230.211.66:8082
+[19:03:58] ✓ /opt/circleguard/init-db.sql ya está al día
+[19:03:58] ✓ /opt/circleguard/prod/docker-compose.yml ya está al día
+[19:03:58] ✓ /opt/circleguard/prod/docker-compose.override.yml ya está al día
+[19:03:58] ✓ .env de prod ya existe (no se regeneran secretos)
+[19:03:58] ✓ Paquetes ya instalados: ufw
+[19:03:59] ✓ ufw ya activo
+[19:03:59] ✓ deploy puede usar Docker
+[19:03:59] ✓ docker compose config válido en /opt/circleguard/prod
 
 ────────────────────────────────────────────────────────────────────────
  Ambiente prod listo en /opt/circleguard/prod

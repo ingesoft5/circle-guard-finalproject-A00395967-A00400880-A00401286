@@ -1,20 +1,21 @@
-[03:13:16] Preparando ambiente 'stage' en cg-stage
-[03:13:16] ✓ Paquetes ya instalados: ca-certificates curl jq openssl
-[03:13:16] ✓ Docker ya instalado (Docker version 29.9.3)
-[03:13:16] ✓ Swap ya configurada
-[03:13:16] ✓ Usuario deploy ya existe
-[03:13:16] ✓ deploy ya pertenece a docker
-[03:13:16] ✓ Llave de Jenkins ya autorizada
-[03:13:16] ✓ Paquetes ya instalados: jq
-[03:13:16] ✓ Registro 20.230.211.66:8082 ya está en insecure-registries
-[03:13:16] ✓ deploy ya tiene docker login en 20.230.211.66:8082
-[03:13:16] ✓ /opt/circleguard/init-db.sql ya está al día
-[03:13:16] ✓ .env de stage ya existe (no se regeneran secretos)
-[03:13:17] ✓ Paquetes ya instalados: ufw
-[03:13:16] ! No existe deploy/docker-compose.yml (¿ya se fusionó el PR del compose de Luis?)
-[03:13:16] ! No existe deploy/stage/docker-compose.override.yml (¿ya se fusionó el PR del compose de Luis?)
-[03:13:17] ✓ ufw ya activo
-[03:13:17] ✓ deploy puede usar Docker
+[19:03:49] Preparando ambiente 'stage' en cg-stage
+[19:03:49] ✓ Paquetes ya instalados: ca-certificates curl jq openssl
+[19:03:49] ✓ Docker ya instalado (Docker version 29.9.3)
+[19:03:50] ✓ Swap ya configurada
+[19:03:50] ✓ Usuario deploy ya existe
+[19:03:50] ✓ deploy ya pertenece a docker
+[19:03:50] ✓ Llave de Jenkins ya autorizada
+[19:03:50] ✓ Paquetes ya instalados: jq
+[19:03:50] ✓ Registro 20.230.211.66:8082 ya está en insecure-registries
+[19:03:50] ✓ deploy ya tiene docker login en 20.230.211.66:8082
+[19:03:50] ✓ /opt/circleguard/init-db.sql ya está al día
+[19:03:50] ✓ /opt/circleguard/stage/docker-compose.yml ya está al día
+[19:03:50] ✓ /opt/circleguard/stage/docker-compose.override.yml ya está al día
+[19:03:50] ✓ .env de stage ya existe (no se regeneran secretos)
+[19:03:50] ✓ Paquetes ya instalados: ufw
+[19:03:50] ✓ ufw ya activo
+[19:03:50] ✓ deploy puede usar Docker
+[19:03:50] ✓ docker compose config válido en /opt/circleguard/stage
 
 ────────────────────────────────────────────────────────────────────────
  Ambiente stage listo en /opt/circleguard/stage

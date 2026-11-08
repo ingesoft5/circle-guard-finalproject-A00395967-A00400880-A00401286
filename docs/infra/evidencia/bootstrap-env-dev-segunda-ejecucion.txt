@@ -1,20 +1,21 @@
-[03:13:13] Preparando ambiente 'dev' en cg-dev
-[03:13:13] ✓ Paquetes ya instalados: ca-certificates curl jq openssl
-[03:13:13] ✓ Docker ya instalado (Docker version 29.9.3)
-[03:13:13] ✓ Swap ya configurada
-[03:13:13] ✓ Usuario deploy ya existe
-[03:13:13] ✓ deploy ya pertenece a docker
-[03:13:13] ✓ Llave de Jenkins ya autorizada
-[03:13:13] ✓ Paquetes ya instalados: jq
-[03:13:13] ✓ Registro 20.230.211.66:8082 ya está en insecure-registries
-[03:13:13] ✓ deploy ya tiene docker login en 20.230.211.66:8082
-[03:13:13] ✓ /opt/circleguard/init-db.sql ya está al día
-[03:13:13] ✓ .env de dev ya existe (no se regeneran secretos)
-[03:13:13] ✓ Paquetes ya instalados: ufw
-[03:13:13] ! No existe deploy/docker-compose.yml (¿ya se fusionó el PR del compose de Luis?)
-[03:13:13] ! No existe deploy/dev/docker-compose.override.yml (¿ya se fusionó el PR del compose de Luis?)
-[03:13:14] ✓ ufw ya activo
-[03:13:14] ✓ deploy puede usar Docker
+[19:03:47] Preparando ambiente 'dev' en cg-dev
+[19:03:47] ✓ Paquetes ya instalados: ca-certificates curl jq openssl
+[19:03:47] ✓ Docker ya instalado (Docker version 29.9.3)
+[19:03:48] ✓ Swap ya configurada
+[19:03:48] ✓ Usuario deploy ya existe
+[19:03:48] ✓ deploy ya pertenece a docker
+[19:03:48] ✓ Llave de Jenkins ya autorizada
+[19:03:48] ✓ Paquetes ya instalados: jq
+[19:03:48] ✓ Registro 20.230.211.66:8082 ya está en insecure-registries
+[19:03:48] ✓ deploy ya tiene docker login en 20.230.211.66:8082
+[19:03:48] ✓ /opt/circleguard/init-db.sql ya está al día
+[19:03:48] ✓ /opt/circleguard/dev/docker-compose.yml ya está al día
+[19:03:48] ✓ /opt/circleguard/dev/docker-compose.override.yml ya está al día
+[19:03:48] ✓ .env de dev ya existe (no se regeneran secretos)
+[19:03:48] ✓ Paquetes ya instalados: ufw
+[19:03:48] ✓ ufw ya activo
+[19:03:48] ✓ deploy puede usar Docker
+[19:03:48] ✓ docker compose config válido en /opt/circleguard/dev
 
 ────────────────────────────────────────────────────────────────────────
  Ambiente dev listo en /opt/circleguard/dev
