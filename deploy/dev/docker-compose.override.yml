@@ -1,0 +1,76 @@
+# Override de dev: se fusiona con docker-compose.yml.
+#
+# - Publica los puertos de backends y middleware para depurar. Por defecto solo
+#   en 127.0.0.1 del servidor (usar túnel SSH); DEV_BIND_ADDRESS=0.0.0.0 en .env
+#   los abre a la red.
+# - Logs DEBUG para el paquete com.circleguard.
+# - Kafka agrega un listener EXTERNAL en 9092 para clientes fuera de Docker.
+
+x-dev-logging: &dev-logging
+  LOGGING_LEVEL_COM_CIRCLEGUARD: DEBUG
+
+services:
+  postgres:
+    ports:
+      - "${DEV_BIND_ADDRESS:-127.0.0.1}:5432:5432"
+
+  neo4j:
+    ports:
+      - "${DEV_BIND_ADDRESS:-127.0.0.1}:7474:7474"
+      - "${DEV_BIND_ADDRESS:-127.0.0.1}:7687:7687"
+
+  kafka:
+    ports:
+      - "${DEV_BIND_ADDRESS:-127.0.0.1}:9092:9092"
+    environment:
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,EXTERNAL://${KAFKA_EXTERNAL_HOST:-localhost}:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+
+  redis:
+    ports:
+      - "${DEV_BIND_ADDRESS:-127.0.0.1}:6379:6379"
+
+  openldap:
+    ports:
+      - "${DEV_BIND_ADDRESS:-127.0.0.1}:389:389"
+
+  auth-service:
+    ports:
+      - "${DEV_BIND_ADDRESS:-127.0.0.1}:8180:8180"
+    environment: *dev-logging
+
+  identity-service:
+    ports:
+      - "${DEV_BIND_ADDRESS:-127.0.0.1}:8083:8083"
+    environment: *dev-logging
+
+  promotion-service:
+    ports:
+      - "${DEV_BIND_ADDRESS:-127.0.0.1}:8088:8088"
+    environment: *dev-logging
+
+  notification-service:
+    ports:
+      - "${DEV_BIND_ADDRESS:-127.0.0.1}:8082:8082"
+    environment: *dev-logging
+
+  form-service:
+    ports:
+      - "${DEV_BIND_ADDRESS:-127.0.0.1}:8086:8086"
+    environment: *dev-logging
+
+  file-service:
+    ports:
+      - "${DEV_BIND_ADDRESS:-127.0.0.1}:8085:8085"
+    environment: *dev-logging
+
+  gateway-service:
+    ports:
+      - "${DEV_BIND_ADDRESS:-127.0.0.1}:8087:8087"
+    environment: *dev-logging
+
+  dashboard-service:
+    ports:
+      - "${DEV_BIND_ADDRESS:-127.0.0.1}:8084:8084"
+    environment: *dev-logging
