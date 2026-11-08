@@ -39,18 +39,44 @@ else
     die "No pude cambiar admin/admin. ¿Se cambió a mano? Pon esa contraseña en SONAR_ADMIN_PASSWORD."
 fi
 
-# 2. Quality gate
+# 2. Quality gate: se CONVERGE a exactamente estas condiciones (métrica op umbral).
+# SonarQube 10 crea los gates nuevos con las condiciones "Clean as You Code"
+# (new_violations > 0, cobertura 80 %, duplicación 3 %, hotspots 100 %). La
+# política del equipo es otra, así que se crean, ajustan o borran las necesarias.
+DESIRED=(
+  "new_coverage LT 60"          # cobertura en código nuevo >= 60 %
+  "blocker_violations GT 0"     # 0 problemas bloqueantes
+  "vulnerabilities GT 0"        # 0 vulnerabilidades
+)
 if s GET "/api/qualitygates/show?name=$GATE" &>/dev/null; then
   ok "Quality gate '$GATE' ya existe"
 else
   log "Creando quality gate '$GATE'"
   s POST /api/qualitygates/create --data-urlencode "name=$GATE" >/dev/null
-  add() { s POST /api/qualitygates/create_condition --data-urlencode "gateName=$GATE" \
-            --data-urlencode "metric=$1" --data-urlencode "op=$2" --data-urlencode "error=$3" >/dev/null; }
-  add new_coverage LT 60          # cobertura en código nuevo >= 60 %
-  add blocker_violations GT 0     # 0 problemas bloqueantes
-  add vulnerabilities GT 0        # 0 vulnerabilidades
 fi
+current=$(s GET "/api/qualitygates/show?name=$GATE" | jq -c '.conditions // []')
+for d in "${DESIRED[@]}"; do
+  read -r metric op error <<<"$d"
+  existing=$(jq -c --arg m "$metric" 'map(select(.metric == $m)) | .[0] // empty' <<<"$current")
+  if [[ -z $existing ]]; then
+    log "Condición $metric $op $error"
+    s POST /api/qualitygates/create_condition --data-urlencode "gateName=$GATE" \
+      --data-urlencode "metric=$metric" --data-urlencode "op=$op" --data-urlencode "error=$error" >/dev/null
+  elif [[ $(jq -r '.op + " " + .error' <<<"$existing") != "$op $error" ]]; then
+    log "Ajustando condición $metric a $op $error"
+    s POST /api/qualitygates/update_condition --data-urlencode "id=$(jq -r .id <<<"$existing")" \
+      --data-urlencode "metric=$metric" --data-urlencode "op=$op" --data-urlencode "error=$error" >/dev/null
+  else
+    ok "Condición $metric $op $error ya está"
+  fi
+done
+wanted=$(printf '%s\n' "${DESIRED[@]}" | awk '{print $1}')
+for id_metric in $(jq -r '.[] | .id + ":" + .metric' <<<"$current"); do
+  metric=${id_metric#*:}
+  grep -qx "$metric" <<<"$wanted" && continue
+  log "Quitando condición $metric (no es parte de la política del equipo)"
+  s POST /api/qualitygates/delete_condition --data-urlencode "id=${id_metric%%:*}" >/dev/null
+done
 s POST /api/qualitygates/set_as_default --data-urlencode "name=$GATE" >/dev/null
 ok "Quality gate por defecto: $GATE"
 
