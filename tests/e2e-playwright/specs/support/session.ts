@@ -33,7 +33,7 @@ export async function submitLogin(page: Page, username: string, password: string
   await page.getByPlaceholder('Password').fill(password);
   const [response] = await Promise.all([
     page.waitForResponse(isLoginCall),
-    page.getByText('SIGN IN').click(),
+    page.getByText('SIGN IN', { exact: true }).click(),
   ]);
   return response;
 }
