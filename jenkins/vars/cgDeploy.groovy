@@ -8,7 +8,7 @@
 // sobre el .env en Docker Compose.
 //
 // - 'docker compose up --wait' espera a que todos los contenedores queden
-//   healthy (healthchecks del compose). Si alguno no lo logra en 5 minutos,
+//   healthy (healthchecks del compose). Si alguno no lo logra en 10 minutos,
 //   el comando falla y el build queda en rojo.
 // - La versión desplegada se guarda en .deployed-version en el servidor: así
 //   el job de rollback puede mostrar el "antes" y el "después".
@@ -35,7 +35,7 @@ void call(Map args) {
                     export VERSION='${DEPLOY_VERSION}'
                     export REGISTRY='${DEPLOY_REGISTRY}'
                     docker compose pull --quiet
-                    docker compose up -d --remove-orphans --wait --wait-timeout 300
+                    docker compose up -d --remove-orphans --wait --wait-timeout 600
                     echo '${DEPLOY_VERSION}' > .deployed-version
                     docker compose ps
                 "
