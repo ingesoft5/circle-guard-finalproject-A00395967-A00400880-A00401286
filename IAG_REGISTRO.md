@@ -48,3 +48,34 @@ Cada integrante registra aquí qué le entregó a la IA, qué le pidió, qué ob
 ### Pendiente de verificar en el servidor
 
 El quality gate, la publicación en Nexus, los despliegues, los E2E y las notificaciones se validan cuando estén el servidor de herramientas (Darío) y los Dockerfiles y compose (Luis).
+
+### Sesión 2 (7 de noviembre de 2026): puesta en marcha y correcciones
+
+**Contenido propio entregado a la IA:** las respuestas de Luis y Darío a mis preguntas (Dockerfiles, compose, puertos, `cliff.toml`, Nexus por HTTP, usuario `deploy`), los logs de mi Jenkins local y las capturas de pantalla de Jenkins, GitHub y Discord.
+
+**Prompts empleados (resumen):**
+1. Guiarme paso a paso para levantar Jenkins en local, cargar credenciales, la Shared Library y el job multibranch.
+2. Explicar por qué fallaban los builds y qué capturas de evidencia tomar en cada momento.
+3. Configurar las notificaciones a Discord y generar la llave SSH de despliegue.
+4. Preparar documentos para pedirle a Darío y a Luis lo que necesitaba de ellos.
+5. Revisar los PRs de Luis y de Darío antes de aprobarlos.
+6. Corregir los errores que aparecieron al probar el pipeline.
+
+**Qué produjo la IA y qué revisé:**
+
+| Tema | Resultado |
+|---|---|
+| Jenkins local | Imagen construida, credenciales `github-pat`, `discord-webhook` y `deploy-ssh`, librería, job multibranch con estrategia *merge* y job de rollback |
+| Notificaciones (CG-60) | Mensaje real de fallo en `#circleguard-ci` |
+| Documentos para el equipo | Pendientes de Darío y de Luis, y la guía de la llave SSH |
+| Revisión de PRs | Aprobé con comentarios #7 a #11 (Luis) y #12, #13 y #15 (Darío) después de leer los cambios |
+
+**Errores que encontramos al probar y cómo se corrigieron (revisión crítica):**
+
+- **La librería apuntaba a una rama borrada.** Configuré `circleguard-lib` con la rama del PR #3; al fusionarlo se borró la rama y todos los builds fallaron antes de empezar. Se cambió la versión por defecto a `main`.
+- **La ejecución selectiva no funcionaba en PRs (PR #14).** El clon de un PR no trae `origin/main`, así que siempre se construía todo. El pipeline ahora descarga la rama destino antes de comparar. Verificado: el PR #18 (solo documentación) no construyó ningún servicio y quedó en verde.
+- **La cobertura solo se reportaba (PR #19).** Darío dejó la regla de 60 % en `check`, pero el pipeline corría `test`. Ahora corre `jacocoTestCoverageVerification` en los servicios núcleo. La IA introdujo al principio una variable duplicada que habría fallado en Jenkins; se detectó con un análisis semántico de Groovy antes del commit.
+- **Los PRs se quedaban esperando un ejecutor.** Sin `beforeAgent true`, la etapa *Deploy PROD* reservaba un agente solo para saltarse. Se agregó `beforeAgent`.
+- **`REGISTRY` no llegaba al compose.** El compose de Luis usa `${REGISTRY}`; el deploy ahora lo exporta desde `CG_REGISTRY`.
+
+**Lección:** varias suposiciones de la IA (y de la guía) solo se pudieron confirmar ejecutando el pipeline. Probar en un Jenkins local antes de tener los servidores permitió encontrar estos errores a tiempo.
