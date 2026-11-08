@@ -1,0 +1,9 @@
+# Override de stage: se fusiona con docker-compose.yml.
+#
+# Intencionalmente vacío: stage debe ser idéntico a prod para que las pruebas E2E
+# validen lo mismo que llegará a producción. Sin puertos extra (solo `web`), logs
+# en el nivel por defecto. Las diferencias de capacidad (memoria) van en .env.
+#
+# El archivo existe para que bootstrap-env.sh copie siempre la misma estructura.
+
+services: {}

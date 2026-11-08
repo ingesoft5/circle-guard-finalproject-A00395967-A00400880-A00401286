@@ -1,0 +1,364 @@
+# Despliegue de CircleGuard: base común para dev, stage y prod (CG-23).
+#
+# En el servidor vive en /opt/circleguard/<ambiente>/docker-compose.yml junto con
+# docker-compose.override.yml (diferencias del ambiente) y .env (secretos reales,
+# nunca en git). `docker compose` sin -f fusiona los dos archivos y lee .env.
+#
+# - Todas las imágenes usan la misma ${VERSION}; la exporta el pipeline
+#   (jenkins/vars/cgDeploy.groovy) y tiene prioridad sobre .env. Nunca 'latest'.
+# - La configuración de los servicios se sobreescribe con variables de entorno
+#   (relaxed binding de Spring); los application.yml no se tocan.
+# - `up --wait` exige que cada contenedor con healthcheck quede healthy.
+# - Solo `web` publica un puerto; los backends y la middleware quedan en la red
+#   interna del proyecto y se alcanzan por nombre de servicio.
+# - Variables: los secretos son obligatorios (`:?`); lo que no es secreto tiene
+#   un valor por defecto (`:-`). CG_ENV, REGISTRY y VERSION también son
+#   obligatorias porque no hay un valor por defecto seguro.
+# - Memoria: cada contenedor tiene mem_limit; la suma cabe en una VM de 8 GB
+#   (Azure B2s_v2). Ver la tabla en deploy/README.md.
+# Ver deploy/README.md.
+
+name: circleguard-${CG_ENV:?Define CG_ENV (dev, stage o prod) en .env}
+
+x-java-service: &java-service
+  restart: unless-stopped
+  # Las imágenes arrancan con -XX:MaxRAMPercentage=75: heap = 75 % de este límite.
+  mem_limit: ${JAVA_MEM_LIMIT:-512m}
+
+# Valores comunes de los healthchecks Java; cada servicio agrega su `test` con su puerto.
+# start_period de 120s: 8 JVM arrancando a la vez en 2 vCPU tardan más.
+x-java-healthcheck: &java-healthcheck
+  interval: 10s
+  timeout: 5s
+  retries: 12
+  start_period: 120s
+
+x-db-credentials: &db-credentials
+  SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-circleguard}
+  SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
+
+services:
+  # ---------------------------------------------------------------- middleware
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    mem_limit: ${POSTGRES_MEM_LIMIT:-384m}
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-circleguard}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
+      POSTGRES_DB: circleguard
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Crea las 5 bases de los servicios; solo corre con el volumen vacío.
+      # En el servidor apunta a /opt/circleguard/init-db.sql (lo copia bootstrap-env.sh);
+      # en local, a init-db.sql de la raíz del repo.
+      - ../init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    healthcheck:
+      # -h 127.0.0.1: durante la inicialización postgres solo escucha por socket,
+      # así no se reporta healthy antes de que termine init-db.sql.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  neo4j:
+    image: neo4j:5.26
+    restart: unless-stopped
+    # heap + pagecache + memoria nativa de la JVM. Medido: ~680 MiB en reposo, sin datos.
+    mem_limit: ${NEO4J_MEM_LIMIT:-1g}
+    environment:
+      # El usuario de Neo4j siempre es 'neo4j'; la contraseña debe tener 8+ caracteres.
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?Define NEO4J_PASSWORD en .env}
+      NEO4J_server_memory_heap_initial__size: ${NEO4J_HEAP_MAX:-384m}
+      NEO4J_server_memory_heap_max__size: ${NEO4J_HEAP_MAX:-384m}
+      NEO4J_server_memory_pagecache_size: ${NEO4J_PAGECACHE:-128m}
+    volumes:
+      - neo4jdata:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:7474 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    restart: unless-stopped
+    mem_limit: 256m
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      # Sin esto zookeeper-server-start usa -Xmx512M y no cabe en el límite.
+      KAFKA_HEAP_OPTS: -Xms128m -Xmx128m
+    volumes:
+      - zkdata:/var/lib/zookeeper/data
+      - zklog:/var/lib/zookeeper/log
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    restart: unless-stopped
+    mem_limit: ${KAFKA_MEM_LIMIT:-768m}
+    depends_on:
+      zookeeper:
+        condition: service_started
+    environment:
+      # La imagen usa -Xmx1G por defecto, que supera el límite del contenedor.
+      KAFKA_HEAP_OPTS: -Xms384m -Xmx384m
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      # Listener interno para los contenedores. El override de dev agrega uno externo.
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    volumes:
+      - kafkadata:/var/lib/kafka/data
+    healthcheck:
+      # kafka-topics arranca otra JVM dentro del mismo límite de memoria: heap propio
+      # pequeño para que no herede el del broker y provoque un OOM kill.
+      test: ["CMD-SHELL", "KAFKA_HEAP_OPTS='-Xms32m -Xmx64m' kafka-topics --bootstrap-server localhost:29092 --list > /dev/null"]
+      interval: 10s
+      timeout: 20s
+      retries: 12
+      start_period: 30s
+
+  redis:
+    image: redis:7.2
+    restart: unless-stopped
+    mem_limit: 128m
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  openldap:
+    image: osixia/openldap:1.5.0
+    restart: unless-stopped
+    mem_limit: 128m
+    environment:
+      LDAP_ORGANISATION: "CircleGuard"
+      # Debe coincidir con la base dc=circleguard,dc=edu que espera auth-service.
+      LDAP_DOMAIN: "circleguard.edu"
+      LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD:?Define LDAP_ADMIN_PASSWORD en .env}
+      # Opcional: bootstrap-env.sh no la genera; sin ella se usa LDAP_ADMIN_PASSWORD
+      # (nunca el 'config' por defecto de la imagen). Solo se aplica con el volumen vacío.
+      LDAP_CONFIG_PASSWORD: ${LDAP_CONFIG_PASSWORD:-${LDAP_ADMIN_PASSWORD:?Define LDAP_ADMIN_PASSWORD en .env}}
+    # slapd reserva memoria por descriptor de archivo; con el límite alto de Docker
+    # moderno puede consumir mucha RAM o no arrancar.
+    ulimits:
+      nofile:
+        soft: 1024
+        hard: 1024
+    volumes:
+      - ldapdata:/var/lib/ldap
+      - ldapconfig:/etc/ldap/slapd.d
+    healthcheck:
+      test: ["CMD-SHELL", "ldapsearch -x -H ldap://localhost:389 -s base -b dc=circleguard,dc=edu -D cn=admin,dc=circleguard,dc=edu -w \"$$LDAP_ADMIN_PASSWORD\" > /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  # ------------------------------------------------------------ microservicios
+  auth-service:
+    <<: *java-service
+    image: ${REGISTRY:?Define REGISTRY}/circleguard/auth-service:${VERSION:?Define VERSION=vX.Y.Z}
+    environment:
+      <<: *db-credentials
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/circleguard_auth
+      SPRING_LDAP_URLS: ldap://openldap:389
+      SPRING_LDAP_PASSWORD: ${LDAP_ADMIN_PASSWORD:?Define LDAP_ADMIN_PASSWORD en .env}
+      JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en .env}
+      QR_SECRET: ${QR_SECRET:?Define QR_SECRET en .env}
+      # IdentityClient: propiedad circleguard.identity-service.url.
+      CIRCLEGUARD_IDENTITYSERVICE_URL: http://identity-service:8083
+    depends_on:
+      postgres:
+        condition: service_healthy
+      openldap:
+        condition: service_healthy
+    healthcheck:
+      <<: *java-healthcheck
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8180/actuator/health/readiness"]
+
+  identity-service:
+    <<: *java-service
+    image: ${REGISTRY:?Define REGISTRY}/circleguard/identity-service:${VERSION:?Define VERSION=vX.Y.Z}
+    environment:
+      <<: *db-credentials
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/circleguard_identity
+      # application.yml no lo declara, pero IdentityVaultController publica en Kafka.
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en .env}
+      VAULT_SECRET: ${VAULT_SECRET:?Define VAULT_SECRET en .env}
+      # Hexadecimal: Encryptors.text(secret, salt) lo decodifica como hex.
+      VAULT_SALT: ${VAULT_SALT:?Define VAULT_SALT (hexadecimal) en .env}
+      # Opcional: bootstrap-env.sh no la genera; sin ella se usa VAULT_SALT.
+      # No agregarla en un ambiente con datos: cambia el hash de las identidades.
+      VAULT_HASHSALT: ${VAULT_HASH_SALT:-${VAULT_SALT:?Define VAULT_SALT (hexadecimal) en .env}}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      <<: *java-healthcheck
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8083/actuator/health/readiness"]
+
+  promotion-service:
+    <<: *java-service
+    image: ${REGISTRY:?Define REGISTRY}/circleguard/promotion-service:${VERSION:?Define VERSION=vX.Y.Z}
+    environment:
+      <<: *db-credentials
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/circleguard_promotion
+      SPRING_NEO4J_URI: bolt://neo4j:7687
+      SPRING_NEO4J_AUTHENTICATION_USERNAME: neo4j
+      SPRING_NEO4J_AUTHENTICATION_PASSWORD: ${NEO4J_PASSWORD:?Define NEO4J_PASSWORD en .env}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_DATA_REDIS_HOST: redis
+      JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en .env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      <<: *java-healthcheck
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8088/actuator/health/readiness"]
+
+  notification-service:
+    <<: *java-service
+    image: ${REGISTRY:?Define REGISTRY}/circleguard/notification-service:${VERSION:?Define VERSION=vX.Y.Z}
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      AUTH_API_URL: http://auth-service:8180
+      IDENTITY_API_URL: http://identity-service:8083
+      JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en .env}
+      QR_SECRET: ${QR_SECRET:?Define QR_SECRET en .env}
+      # Integraciones externas opcionales (no hay SMTP ni Gotify en este compose).
+      # Sin valores en .env se conservan los valores por defecto del código (modo mock).
+      SPRING_MAIL_HOST: ${SMTP_HOST:-localhost}
+      SPRING_MAIL_PORT: ${SMTP_PORT:-25}
+      PUSH_GOTIFY_URL: ${GOTIFY_URL:-http://localhost:8080}
+      PUSH_GOTIFY_TOKEN: ${GOTIFY_TOKEN:-MOCK_TOKEN}
+      TWILIO_ACCOUNTSID: ${TWILIO_ACCOUNT_SID:-AC_MOCK_SID}
+      TWILIO_AUTHTOKEN: ${TWILIO_AUTH_TOKEN:-MOCK_TOKEN}
+    depends_on:
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      <<: *java-healthcheck
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8082/actuator/health/readiness"]
+
+  form-service:
+    <<: *java-service
+    image: ${REGISTRY:?Define REGISTRY}/circleguard/form-service:${VERSION:?Define VERSION=vX.Y.Z}
+    environment:
+      <<: *db-credentials
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/circleguard_form
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      <<: *java-healthcheck
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8086/actuator/health/readiness"]
+
+  file-service:
+    <<: *java-service
+    image: ${REGISTRY:?Define REGISTRY}/circleguard/file-service:${VERSION:?Define VERSION=vX.Y.Z}
+    # Sin middleware: su application.yml solo define el puerto.
+    # TEMPORAL: FileStorageService crea "uploads" relativo al directorio de trabajo.
+    # En la imagen es /app (de root) y el proceso corre como UID 10001, así que no
+    # arranca (AccessDeniedException: /app/uploads). En /tmp sí puede escribir, pero
+    # los archivos se pierden al recrear el contenedor. Arreglo definitivo: crear
+    # /app/uploads con dueño 10001 en el Dockerfile y montar un volumen ahí.
+    working_dir: /tmp
+    healthcheck:
+      <<: *java-healthcheck
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8085/actuator/health/readiness"]
+
+  gateway-service:
+    <<: *java-service
+    image: ${REGISTRY:?Define REGISTRY}/circleguard/gateway-service:${VERSION:?Define VERSION=vX.Y.Z}
+    environment:
+      SPRING_DATA_REDIS_HOST: redis
+      JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en .env}
+      QR_SECRET: ${QR_SECRET:?Define QR_SECRET en .env}
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      <<: *java-healthcheck
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8087/actuator/health/readiness"]
+
+  dashboard-service:
+    <<: *java-service
+    image: ${REGISTRY:?Define REGISTRY}/circleguard/dashboard-service:${VERSION:?Define VERSION=vX.Y.Z}
+    environment:
+      <<: *db-credentials
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/circleguard_dashboard
+      # PromotionClient: @Value("${circleguard.promotion-service.url:http://localhost:8088}")
+      CIRCLEGUARD_PROMOTIONSERVICE_URL: http://promotion-service:8088
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      <<: *java-healthcheck
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8084/actuator/health/readiness"]
+
+  # ------------------------------------------------------------------- web
+  # nginx-unprivileged: sirve el cliente Expo y hace proxy de /svc/<servicio>/
+  # hacia los nombres de servicio de arriba. Es el único puerto publicado.
+  web:
+    image: ${REGISTRY:?Define REGISTRY}/circleguard/web:${VERSION:?Define VERSION=vX.Y.Z}
+    restart: unless-stopped
+    mem_limit: 64m
+    ports:
+      - "${WEB_PORT:-80}:8080"
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      identity-service:
+        condition: service_healthy
+      promotion-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+      form-service:
+        condition: service_healthy
+      file-service:
+        condition: service_healthy
+      gateway-service:
+        condition: service_healthy
+      dashboard-service:
+        condition: service_healthy
+    healthcheck:
+      # nginx-unprivileged:1.27-alpine trae wget de BusyBox.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+volumes:
+  pgdata:
+  neo4jdata:
+  zkdata:
+  zklog:
+  kafkadata:
+  redisdata:
+  ldapdata:
+  ldapconfig:

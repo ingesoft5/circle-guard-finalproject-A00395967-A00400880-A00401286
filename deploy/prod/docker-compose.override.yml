@@ -1,0 +1,10 @@
+# Override de prod: se fusiona con docker-compose.yml.
+#
+# Intencionalmente vacío, igual que stage: sin puertos extra (solo `web`) y con los
+# mismos límites de memoria de la base, porque prod corre en el mismo tamaño de VM
+# (Azure B2s_v2, 2 vCPU y 8 GB). Si un ambiente necesita más memoria, se sube
+# JAVA_MEM_LIMIT en su .env sin tocar este archivo.
+#
+# El archivo existe para que bootstrap-env.sh copie siempre la misma estructura.
+
+services: {}

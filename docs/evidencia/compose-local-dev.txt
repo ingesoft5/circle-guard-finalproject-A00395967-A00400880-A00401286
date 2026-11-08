@@ -1,0 +1,90 @@
+# Evidencia: despliegue local de dev con deploy/docker-compose.yml (CG-23)
+# Generado el 2026-11-08. Sin secretos: se usó deploy/dev/.env.example (valores change-me).
+
+Equipo:   macOS + Docker Desktop 29.6.2, 14 CPU, 7.7 GiB para Docker
+Compose:  5.3.1
+Imágenes: local/circleguard/<x>:v0.0.1 construidas desde main d349392 (label org.opencontainers.image.revision)
+
+Comando (desde deploy/):
+  CG_ENV=dev REGISTRY=local VERSION=v0.0.1 docker compose \
+    -f docker-compose.yml -f dev/docker-compose.override.yml -f <local-port-fix.yml> \
+    --env-file <copia de dev/.env.example> up -d --wait --wait-timeout 600
+  <local-port-fix.yml> solo remapea el 5432 de postgres a 15432 en el host, porque en
+  este equipo el 5432 lo ocupa otro proyecto. No forma parte del repo.
+
+== Tiempo de up --wait (desde volúmenes vacíos, imágenes ya descargadas)
+inicio: 2026-11-08 10:47:18
+fin: 2026-11-08 10:47:45 · up --wait exit=0 · 27s
+Nota: medido con 14 CPU. En la VM B2s_v2 (2 vCPU) el arranque de las 8 JVM será
+varias veces más lento; el pipeline usa --wait-timeout 300.
+
+== docker compose ps
+SERVICE                STATUS
+auth-service           Up 21 seconds (healthy)
+dashboard-service      Up 21 seconds (healthy)
+file-service           Up 27 seconds (healthy)
+form-service           Up 20 seconds (healthy)
+gateway-service        Up 21 seconds (healthy)
+identity-service       Up 20 seconds (healthy)
+kafka                  Up 27 seconds (healthy)
+notification-service   Up 20 seconds (healthy)
+openldap               Up 27 seconds (healthy)
+postgres               Up 27 seconds (healthy)
+promotion-service      Up 16 seconds (healthy)
+redis                  Up 27 seconds (healthy)
+web                    Up 5 seconds (healthy)
+zookeeper              Up 27 seconds
+(zookeeper no tiene healthcheck: --wait lo acepta en estado running)
+
+== docker stats --no-stream (en reposo, justo después de arrancar)
+auth-service          226.7MiB / 512MiB  44.28%
+dashboard-service     188MiB / 512MiB    36.72%
+file-service          133.6MiB / 512MiB  26.09%
+form-service          221MiB / 512MiB    43.17%
+gateway-service       162.5MiB / 512MiB  31.75%
+identity-service      224.6MiB / 512MiB  43.87%
+kafka                 395.1MiB / 768MiB  51.44%
+neo4j                 701.2MiB / 1GiB    68.48%
+notification-service  190.1MiB / 512MiB  37.12%
+openldap              12.53MiB / 128MiB  9.79%
+postgres              131.3MiB / 384MiB  34.20%
+promotion-service     309.9MiB / 512MiB  60.53%
+redis                 10.11MiB / 128MiB  7.90%
+web                   11.65MiB / 64MiB   18.21%
+zookeeper             77.46MiB / 256MiB  30.26%
+TOTAL uso: 2925 MiB (2.86 GiB) · suma de límites: 6848 MiB
+Sin OOM kills ni reinicios en ningún contenedor.
+
+== Comprobaciones por el proxy de web (puerto 80)
+curl http://localhost/healthz                              -> ok [HTTP 200]
+curl http://localhost/svc/auth/actuator/health/readiness   -> {"status":"UP"} [HTTP 200]
+/svc/identity     /actuator/health/readiness -> HTTP 200
+/svc/promotion    /actuator/health/readiness -> HTTP 200
+/svc/notification /actuator/health/readiness -> HTTP 200
+/svc/form         /actuator/health/readiness -> HTTP 200
+/svc/file         /actuator/health/readiness -> HTTP 200
+/svc/gateway      /actuator/health/readiness -> HTTP 200
+/svc/dashboard    /actuator/health/readiness -> HTTP 200
+
+== Login por el proxy (POST /svc/auth/api/v1/auth/login, health_user)
+HTTP 500 {"message":"Internal server error: I/O error on POST request for
+"http://localhost:8083/api/v1/identities/map": Connection refused"}
+-> auth autentica contra postgres (usuarios de Flyway) y falla al llamar a identity:
+   IdentityClient tiene la URL fija en localhost. Lo corrige el agente F; el compose
+   ya pasa CIRCLEGUARD_IDENTITYSERVICE_URL=http://identity-service:8083.
+
+== Playwright (tests/e2e-playwright, imagen del pipeline mcr.microsoft.com/playwright:v1.48.2-jammy,
+   CI=true, BASE_URL=http://web:8080 dentro de la red circleguard-dev_default)
+  1 passed  · campus-access › un token que no es un QR firmado se rechaza (web -> nginx -> gateway-service)
+  7 failed  · smoke, login (3), questionnaire, campus-access (2)
+  1 did not run
+  Causa común de los 7: strict mode violation: getByText('SIGN IN') resolved to 2 elements
+  ("Sign in with your University ID" y "SIGN IN"). El selector del test no es exacto,
+  así que falla antes de enviar el login; detrás está el 500 de arriba.
+  (Con el navegador local no se pudo: chromium-1140 no se descarga, su CDN azureedge ya no responde.)
+
+== Apagado
+docker compose ... down -v
+ Volume circleguard-dev_kafkadata Removed 
+ Network circleguard-dev_default Removed 
+contenedores restantes: 0 · volúmenes: 0

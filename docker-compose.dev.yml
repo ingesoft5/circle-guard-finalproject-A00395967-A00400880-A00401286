@@ -5,8 +5,8 @@ services:
     image: postgres:16
     container_name: circleguard-postgres
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: password
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
       POSTGRES_DB: circleguard
     ports:
       - "5432:5432"
@@ -21,7 +21,7 @@ services:
       - "7474:7474"
       - "7687:7687"
     environment:
-      NEO4J_AUTH: neo4j/password
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-password}
       NEO4J_PLUGINS: '["apoc"]'
       NEO4J_dbms_connector_bolt_listen__address: :7687
       NEO4J_dbms_connector_bolt_advertised__address: :7687
@@ -65,7 +65,7 @@ services:
     environment:
       LDAP_ORGANISATION: "CircleGuard"
       LDAP_DOMAIN: "circleguard.edu"
-      LDAP_ADMIN_PASSWORD: "admin"
+      LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD:-admin}
 
 volumes:
   pgdata:
