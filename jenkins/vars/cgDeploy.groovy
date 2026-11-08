@@ -1,10 +1,14 @@
 // Despliegue a un ambiente por SSH + Docker Compose (CG-56, CG-57, CG-61).
 //
 // En el servidor del ambiente, dentro de <CG_DEPLOY_DIR>/<ambiente>, está el
-// docker-compose.yml de Luis, que usa ${VERSION} como tag de las imágenes.
+// docker-compose.yml de Luis, que usa ${REGISTRY}/circleguard/<x>:${VERSION}.
+// El pipeline exporta VERSION y también REGISTRY (desde CG_REGISTRY): así el
+// registro del que se descarga es el mismo en el que Jenkins publicó, aunque
+// el .env del servidor no lo defina. Las variables del shell tienen prioridad
+// sobre el .env en Docker Compose.
 //
 // - 'docker compose up --wait' espera a que todos los contenedores queden
-//   healthy (healthchecks del compose). Si alguno no lo logra en 5 minutos,
+//   healthy (healthchecks del compose). Si alguno no lo logra en 10 minutos,
 //   el comando falla y el build queda en rojo.
 // - La versión desplegada se guarda en .deployed-version en el servidor: así
 //   el job de rollback puede mostrar el "antes" y el "después".
@@ -23,14 +27,15 @@ void call(Map args) {
     echo "Versión actual en ${envName}: ${before ?: '(ninguna)'}"
 
     withDeployEnv(envName, host) {
-        withEnv(["DEPLOY_VERSION=${version}"]) {
+        withEnv(["DEPLOY_VERSION=${version}", "DEPLOY_REGISTRY=${cgConfig.registry()}"]) {
             sh '''
                 ssh -o StrictHostKeyChecking=accept-new "${DEPLOY_USER}@${DEPLOY_HOST}" "
                     set -e
                     cd '${DEPLOY_PATH}'
                     export VERSION='${DEPLOY_VERSION}'
+                    export REGISTRY='${DEPLOY_REGISTRY}'
                     docker compose pull --quiet
-                    docker compose up -d --remove-orphans --wait --wait-timeout 300
+                    docker compose up -d --remove-orphans --wait --wait-timeout 600
                     echo '${DEPLOY_VERSION}' > .deployed-version
                     docker compose ps
                 "

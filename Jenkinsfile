@@ -151,7 +151,12 @@ pipeline {
         }
 
         stage('Deploy PROD') {
-            when { expression { isRelease() } }
+            // beforeAgent: evaluar el when ANTES de pedir un ejecutor. Sin esto,
+            // cada PR esperaba un ejecutor libre solo para saltarse esta etapa.
+            when {
+                beforeAgent true
+                expression { isRelease() }
+            }
             agent any
             steps {
                 cgDeploy(env: 'prod', version: env.VERSION)
