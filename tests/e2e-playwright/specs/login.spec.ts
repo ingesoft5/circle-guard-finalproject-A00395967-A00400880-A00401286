@@ -10,8 +10,8 @@ test.describe('Inicio de sesión', () => {
     const session = await login(page);
 
     // Pantalla principal: estado y pase QR del usuario.
-    await expect(page.getByText('STATUS')).toBeVisible();
-    await expect(page.getByText('LOGOUT')).toBeVisible();
+    await expect(page.getByText('STATUS').locator('visible=true').first()).toBeVisible();
+    await expect(page.getByText('LOGOUT').locator('visible=true').first()).toBeVisible();
 
     // Privacidad: lo que identifica al usuario en la app es el id anónimo,
     // nunca el usuario real.
@@ -32,7 +32,7 @@ test.describe('Inicio de sesión', () => {
 
   test('cerrar sesión vuelve al login', async ({ page }) => {
     await login(page);
-    await page.getByText('LOGOUT').click();
+    await page.getByText('LOGOUT').locator('visible=true').first().click();
     await expect(page).toHaveURL(/\/login/);
     await expect(page.getByText('Welcome Back')).toBeVisible();
   });
