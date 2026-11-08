@@ -1,0 +1,24 @@
+[03:13:13] Preparando ambiente 'dev' en cg-dev
+[03:13:13] ✓ Paquetes ya instalados: ca-certificates curl jq openssl
+[03:13:13] ✓ Docker ya instalado (Docker version 29.9.3)
+[03:13:13] ✓ Swap ya configurada
+[03:13:13] ✓ Usuario deploy ya existe
+[03:13:13] ✓ deploy ya pertenece a docker
+[03:13:13] ✓ Llave de Jenkins ya autorizada
+[03:13:13] ✓ Paquetes ya instalados: jq
+[03:13:13] ✓ Registro 20.230.211.66:8082 ya está en insecure-registries
+[03:13:13] ✓ deploy ya tiene docker login en 20.230.211.66:8082
+[03:13:13] ✓ /opt/circleguard/init-db.sql ya está al día
+[03:13:13] ✓ .env de dev ya existe (no se regeneran secretos)
+[03:13:13] ✓ Paquetes ya instalados: ufw
+[03:13:13] ! No existe deploy/docker-compose.yml (¿ya se fusionó el PR del compose de Luis?)
+[03:13:13] ! No existe deploy/dev/docker-compose.override.yml (¿ya se fusionó el PR del compose de Luis?)
+[03:13:14] ✓ ufw ya activo
+[03:13:14] ✓ deploy puede usar Docker
+
+────────────────────────────────────────────────────────────────────────
+ Ambiente dev listo en /opt/circleguard/dev
+   Jenkins entra con:  ssh deploy@<ip-de-esta-vm>
+   Cliente web:        http://<ip-de-esta-vm>:80
+   Registro:           20.230.211.66:8082 (login de solo lectura: deploy-pull)
+────────────────────────────────────────────────────────────────────────
