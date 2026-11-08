@@ -87,11 +87,18 @@ pipeline {
         success {
             script {
                 env.NOTIFY_DETAIL = "**Ambiente:** ${params.TARGET_ENV} (${env.PREVIOUS_VERSION ?: '?'} -> ${env.VERSION})\n**Motivo:** ${params.REASON}"
-                node { cgNotify('rollback') }
+                notify('rollback')
             }
         }
-        failure { node { cgNotify('failure') } }
-        aborted { node { cgNotify('aborted') } }
+        failure { notify('failure') }
+        aborted { notify('aborted') }
+    }
+}
+
+/** Envía la notificación desde un nodo (el post global no tiene agente). */
+void notify(String status) {
+    node {
+        cgNotify(status)
     }
 }
 
