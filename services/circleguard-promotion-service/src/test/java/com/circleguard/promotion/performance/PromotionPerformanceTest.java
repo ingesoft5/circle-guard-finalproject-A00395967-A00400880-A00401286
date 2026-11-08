@@ -18,9 +18,12 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-// Usa Neo4j real (Testcontainers): necesita Docker, así que corre en la etapa
-// de integración del pipeline (./gradlew integrationTest), no en "test".
-@Tag("integration")
+// Benchmark del NFR-1 (cascada < 1 s) con Neo4j real (Testcontainers). Mide
+// tiempo, así que no corre en "test" ni en "integrationTest": en el agente de
+// Jenkins (VM burstable compartida con Sonar, Nexus y otros builds) el tiempo
+// depende de la carga y no del código. Se ejecuta aparte:
+//   ./gradlew :services:circleguard-promotion-service:performanceTest
+@Tag("performance")
 // PostgreSQL real vía la URL JDBC de Testcontainers (Flyway corre las migraciones).
 @SpringBootTest(properties = {
         "spring.datasource.url=jdbc:tc:postgresql:16-alpine:///promotion",

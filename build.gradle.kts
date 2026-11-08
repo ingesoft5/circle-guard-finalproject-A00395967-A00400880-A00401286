@@ -57,7 +57,7 @@ subprojects {
     // Testcontainers y necesitan Docker). 'test' las excluye para que las
     // unitarias sigan siendo rápidas; 'integrationTest' corre solo esas.
     tasks.named<Test>("test") {
-        useJUnitPlatform { excludeTags("integration") }
+        useJUnitPlatform { excludeTags("integration", "performance") }
     }
     val testSourceSet = the<SourceSetContainer>()["test"]
     tasks.register<Test>("integrationTest") {
@@ -69,6 +69,16 @@ subprojects {
         shouldRunAfter(tasks.named("test"))
         // Docker Engine 29+ rechaza la API 1.32 que usa por defecto el docker-java de
         // Testcontainers 1.19 (responde 400 y "Could not find a valid Docker environment").
+        systemProperty("api.version", "1.44")
+    }
+    // Benchmarks (@Tag("performance")): miden tiempo, así que no corren en el
+    // pipeline (en una VM compartida el resultado depende de la carga).
+    tasks.register<Test>("performanceTest") {
+        description = "Benchmarks de rendimiento (@Tag(\"performance\")); se ejecutan aparte."
+        group = "verification"
+        testClassesDirs = testSourceSet.output.classesDirs
+        classpath = testSourceSet.runtimeClasspath
+        useJUnitPlatform { includeTags("performance") }
         systemProperty("api.version", "1.44")
     }
 

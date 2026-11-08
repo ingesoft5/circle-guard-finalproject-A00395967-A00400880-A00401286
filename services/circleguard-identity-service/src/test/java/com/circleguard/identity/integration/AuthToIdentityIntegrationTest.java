@@ -1,11 +1,13 @@
 package com.circleguard.identity.integration;
 
 import com.circleguard.auth.client.IdentityClient;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -39,14 +41,13 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Además verifica la promesa de privacidad del sistema: la identidad real no se
  * guarda en texto plano.
  *
- * <p>Puerto fijo 8083: hoy IdentityClient tiene la URL escrita en el código
- * (http://localhost:8083). Cuando se vuelva configurable, cambiar a RANDOM_PORT.
+ * <p>identity escucha en un puerto aleatorio y el cliente recibe esa URL base por
+ * su constructor, igual que en compose recibe CIRCLEGUARD_IDENTITYSERVICE_URL.
  * Solo se simula el KafkaTemplate de auditoría (Kafka no es parte de este flujo).
  */
 @Tag("integration")
 @Testcontainers
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT,
-        properties = "server.port=8083")
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class AuthToIdentityIntegrationTest {
 
     @Container
@@ -70,8 +71,16 @@ class AuthToIdentityIntegrationTest {
     @Autowired
     private JdbcTemplate jdbc;
 
+    @LocalServerPort
+    private int port;
+
     /** Cliente real de auth-service, igual que lo usa LoginController. */
-    private final IdentityClient authIdentityClient = new IdentityClient();
+    private IdentityClient authIdentityClient;
+
+    @BeforeEach
+    void realClient() {
+        authIdentityClient = new IdentityClient("http://localhost:" + port);
+    }
 
     @Test
     @DisplayName("auth obtiene un id anónimo estable para el mismo usuario")
