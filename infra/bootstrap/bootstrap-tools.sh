@@ -12,6 +12,8 @@
 #                 Por defecto se consulta a ifconfig.me.
 #   PRIVATE_IP    IP privada (la que usan los ambientes para el registro).
 #                 Por defecto la primera de `hostname -I`.
+#   REGISTRY_HOST Dirección con la que TODOS usan el registro (Jenkins y ambientes).
+#                 Por defecto PRIVATE_IP. Con ambientes en otra región, la IP pública.
 #   BASE          Carpeta de estado fuera del repo (por defecto /opt/cg-tools).
 set -Eeuo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -33,7 +35,7 @@ ensure_in_group "$ADMIN_USER" docker
 
 PRIVATE_IP=${PRIVATE_IP:-$(hostname -I | awk '{print $1}')}
 PUBLIC_HOST=${PUBLIC_HOST:-$(curl -fs --max-time 5 https://ifconfig.me || echo "$PRIVATE_IP")}
-REGISTRY="$PRIVATE_IP:8082"
+REGISTRY="${REGISTRY_HOST:-$PRIVATE_IP}:8082"
 
 # --- 2. Kernel para SonarQube --------------------------------------------------
 # SonarQube trae Elasticsearch, que necesita vm.max_map_count >= 262144; si no,
