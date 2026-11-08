@@ -69,9 +69,13 @@ public class HealthStatusService {
             "     CASE WHEN $status = 'CONFIRMED' THEN 'SUSPECT' " +
             "          WHEN $status = 'SUSPECT' THEN 'PROBABLE' " +
             "          ELSE c1.status END as l1Status " +
-            "WHERE c1 IS NOT NULL AND c1.status <> l1Status " +
-            "SET c1.status = l1Status, c1.statusUpdatedAt = timestamp() " +
-            "WITH source, collect(DISTINCT {id: c1.anonymousId, status: l1Status}) as l1 " +
+            // Antes un WHERE filtraba la fila cuando no había contactos y la consulta no
+            // devolvía nada: el estado del usuario no llegaba a Redis (gateway) ni a Kafka.
+            // FOREACH aplica el SET solo a los contactos que cambian sin descartar la fila.
+            "WITH source, c1, l1Status, coalesce(c1 IS NOT NULL AND c1.status <> l1Status, false) AS changed " +
+            "FOREACH (_ IN CASE WHEN changed THEN [1] ELSE [] END | " +
+            "  SET c1.status = l1Status, c1.statusUpdatedAt = timestamp()) " +
+            "WITH source, collect(DISTINCT CASE WHEN changed THEN {id: c1.anonymousId, status: l1Status} END) as l1 " +
             "OPTIONAL MATCH (source)-[r1]-(c1_node:User)-[r2]-(c2:User) " +
             "WHERE $status = 'CONFIRMED' " +
             "  AND ( " +
