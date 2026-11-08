@@ -4,8 +4,10 @@
 //   queda en rojo. Con --continue se ejecutan las pruebas de todos los
 //   servicios antes de fallar, para ver todos los errores en un solo build.
 // - Los reportes se publican siempre (también cuando hay fallos).
-// - En los servicios núcleo la cobertura < 60 % marca el build como UNSTABLE
-//   (amarillo). El bloqueo duro lo hace el quality gate de SonarQube.
+// - En los servicios núcleo (auth, identity, promotion, form, gateway) se corre
+//   además jacocoTestCoverageVerification: si la cobertura de líneas baja de
+//   60 %, el build queda en ROJO (la regla está en build.gradle.kts, CG-35).
+//   El plugin Coverage de Jenkins también lo muestra en el reporte.
 
 void call(List<String> services) {
     if (!services) {
@@ -13,14 +15,17 @@ void call(List<String> services) {
         return
     }
 
-    String tasks = services.collect { ":services:${it}:test :services:${it}:jacocoTestReport" }.join(' ')
+    List<String> core = cgConfig.coreServices()
+    String tasks = services.collect { svc ->
+        String base = ":services:${svc}:test :services:${svc}:jacocoTestReport"
+        svc in core ? "${base} :services:${svc}:jacocoTestCoverageVerification" : base
+    }.join(' ')
     try {
         sh "./gradlew ${tasks} --continue --no-daemon"
     } finally {
         junit testResults: services.collect { "services/${it}/build/test-results/test/*.xml" }.join(','),
               allowEmptyResults: true
 
-        List<String> core = cgConfig.coreServices()
         services.each { svc ->
             Map options = [
                 tools: [[parser: 'JACOCO', pattern: "services/${svc}/build/reports/jacoco/test/jacocoTestReport.xml"]],
