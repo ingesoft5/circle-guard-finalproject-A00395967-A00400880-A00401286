@@ -13,6 +13,6 @@ test.describe('Smoke: cliente web', () => {
     await expect(page.getByText('Welcome Back')).toBeVisible();
     await expect(page.getByPlaceholder('Username')).toBeVisible();
     await expect(page.getByPlaceholder('Password')).toBeVisible();
-    await expect(page.getByText('SIGN IN')).toBeVisible();
+    await expect(page.getByText('SIGN IN', { exact: true })).toBeVisible();
   });
 });
