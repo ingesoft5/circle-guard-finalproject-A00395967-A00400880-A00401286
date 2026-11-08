@@ -12,7 +12,7 @@ jwt:
 
 qr:
   secret: "my-qr-secret-key-for-dev-1234567890"
-  expiration: 300
+  expiration: 300000 # milisegundos (5 minutos)
 
 server:
   port: 8087
