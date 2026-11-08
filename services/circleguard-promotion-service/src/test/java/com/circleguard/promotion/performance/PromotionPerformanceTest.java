@@ -3,6 +3,7 @@ package com.circleguard.promotion.performance;
 import com.circleguard.promotion.service.HealthStatusService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.neo4j.core.Neo4jClient;
@@ -16,6 +17,9 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+// Usa Neo4j real (Testcontainers): necesita Docker, así que corre en la etapa
+// de integración del pipeline (./gradlew integrationTest), no en "test".
+@Tag("integration")
 @SpringBootTest
 @Testcontainers
 public class PromotionPerformanceTest {
