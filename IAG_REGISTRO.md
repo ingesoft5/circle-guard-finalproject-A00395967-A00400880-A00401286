@@ -54,12 +54,9 @@ El quality gate, la publicación en Nexus, los despliegues, los E2E y las notifi
 **Contenido propio entregado a la IA:** las respuestas de Luis y Darío a mis preguntas (Dockerfiles, compose, puertos, `cliff.toml`, Nexus por HTTP, usuario `deploy`), los logs de mi Jenkins local y las capturas de pantalla de Jenkins, GitHub y Discord.
 
 **Prompts empleados (resumen):**
-1. Guiarme paso a paso para levantar Jenkins en local, cargar credenciales, la Shared Library y el job multibranch.
-2. Explicar por qué fallaban los builds y qué capturas de evidencia tomar en cada momento.
-3. Configurar las notificaciones a Discord y generar la llave SSH de despliegue.
-4. Preparar documentos para pedirle a Darío y a Luis lo que necesitaba de ellos.
-5. Revisar los PRs de Luis y de Darío antes de aprobarlos.
-6. Corregir los errores que aparecieron al probar el pipeline.
+1. Apoyo en la configuración de Jenkins (local y servidor), credenciales y notificaciones.
+2. Apoyo para documentar el avance y coordinar con el equipo (mensajes, revisión de PRs).
+3. Análisis de los errores del pipeline y sus correcciones.
 
 **Qué produjo la IA y qué revisé:**
 
@@ -67,8 +64,7 @@ El quality gate, la publicación en Nexus, los despliegues, los E2E y las notifi
 |---|---|
 | Jenkins local | Imagen construida, credenciales `github-pat`, `discord-webhook` y `deploy-ssh`, librería, job multibranch con estrategia *merge* y job de rollback |
 | Notificaciones (CG-60) | Mensaje real de fallo en `#circleguard-ci` |
-| Documentos para el equipo | Pendientes de Darío y de Luis, y la guía de la llave SSH |
-| Revisión de PRs | Aprobé con comentarios #7 a #11 (Luis) y #12, #13 y #15 (Darío) después de leer los cambios |
+| Coordinación con el equipo | Mensajes con los pendientes para Darío y Luis, y revisión de sus PRs antes de aprobarlos |
 
 **Errores que encontramos al probar y cómo se corrigieron (revisión crítica):**
 
