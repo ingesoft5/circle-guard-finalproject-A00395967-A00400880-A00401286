@@ -141,10 +141,19 @@ ensure_ufw_rule "$WEB_PORT/tcp"
 ensure_ufw_enabled
 
 # --- 7. Verificación ------------------------------------------------------------------
-sudo -u "$DEPLOY_USER" -H docker ps >/dev/null && ok "$DEPLOY_USER puede usar Docker"
+# Con "a && ok" un fallo de "a" no dispara set -e ni el trap: la verificación
+# fallaría en silencio. Por eso cada chequeo termina en die.
+if sudo -u "$DEPLOY_USER" -H docker ps >/dev/null; then
+  ok "$DEPLOY_USER puede usar Docker"
+else
+  die "$DEPLOY_USER no puede usar Docker (¿quedó en el grupo docker?)"
+fi
 if [[ -f $APP_DIR/docker-compose.yml ]]; then
-  (cd "$APP_DIR" && sudo -u "$DEPLOY_USER" -H env VERSION=v0.0.0 docker compose config -q) &&
+  if (cd "$APP_DIR" && sudo -u "$DEPLOY_USER" -H env VERSION=v0.0.0 docker compose config -q); then
     ok "docker compose config válido en $APP_DIR"
+  else
+    die "docker compose config falla en $APP_DIR: revisa el compose y el .env"
+  fi
 fi
 
 cat <<EOF
