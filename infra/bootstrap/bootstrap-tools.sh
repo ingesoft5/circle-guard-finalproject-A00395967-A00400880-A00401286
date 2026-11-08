@@ -73,7 +73,8 @@ set -a; . "$ENV_FILE"; set +a
 # --- 5. Levantar el stack -------------------------------------------------------
 # 'up -d' converge al estado deseado: si ya está igual, no recrea nada.
 log "Levantando Jenkins, SonarQube y Nexus (la primera vez tarda varios minutos)"
-"${COMPOSE[@]}" up -d --build --wait --wait-timeout 600
+"${COMPOSE[@]}" build --quiet jenkins   # imagen de Simón; en caché si no cambió
+"${COMPOSE[@]}" up -d --wait --wait-timeout 600
 ok "Contenedores healthy"
 
 # --- 6. Configuración por API ---------------------------------------------------
@@ -92,6 +93,7 @@ fi
 # --- 7. Firewall del host -------------------------------------------------------
 # El perímetro real es el NSG de Azure (fuente restringida por puerto). ufw es
 # una segunda capa. Ojo: los puertos publicados por Docker no pasan por ufw.
+ensure_packages ufw
 for p in 22/tcp 8080/tcp 9000/tcp 8081/tcp 8082/tcp; do ensure_ufw_rule "$p"; done
 ensure_ufw_enabled
 

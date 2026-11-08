@@ -90,8 +90,7 @@ write_if_changed() {
 }
 
 # Regla de firewall del host (ufw). Repetir 'ufw allow' es seguro.
-ensure_ufw_rule() {
-  ensure_packages ufw
+ensure_ufw_rule() {   # requiere ufw instalado (ensure_packages ufw)
   ufw allow "$@" >/dev/null
 }
 

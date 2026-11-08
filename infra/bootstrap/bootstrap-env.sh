@@ -135,6 +135,7 @@ chown "$DEPLOY_USER:$DEPLOY_USER" "$ENV_FILE"; chmod 600 "$ENV_FILE"
 
 # --- 6. Firewall del host -----------------------------------------------------------
 # El NSG de Azure limita el 22 a Jenkins + equipo; aquí solo se abren los puertos.
+ensure_packages ufw
 ensure_ufw_rule 22/tcp
 ensure_ufw_rule "$WEB_PORT/tcp"
 ensure_ufw_enabled
