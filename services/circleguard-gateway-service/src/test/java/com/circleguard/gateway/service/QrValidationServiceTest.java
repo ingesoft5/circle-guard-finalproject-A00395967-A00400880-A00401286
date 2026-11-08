@@ -5,6 +5,8 @@ import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
@@ -64,5 +66,40 @@ public class QrValidationServiceTest {
         
         assertFalse(result.valid());
         assertEquals("RED", result.status());
+    }
+
+    // Estados que escribe promotion-service en Redis (SUSPECT, PROBABLE, CONFIRMED):
+    // un usuario en cualquiera de ellos no puede entrar al campus.
+    @ParameterizedTest
+    @ValueSource(strings = {"SUSPECT", "PROBABLE", "CONFIRMED"})
+    void shouldDenyAccessForUsersFlaggedByPromotion(String status) {
+        String anonymousId = UUID.randomUUID().toString();
+        Mockito.when(valueOps.get("user:status:" + anonymousId)).thenReturn(status);
+
+        QrValidationService.ValidationResult result = service.validateToken(tokenFor(anonymousId));
+
+        assertFalse(result.valid());
+        assertEquals("RED", result.status());
+    }
+
+    // ACTIVE (sano) y RECOVERED (recuperado) sí pueden entrar.
+    @ParameterizedTest
+    @ValueSource(strings = {"ACTIVE", "RECOVERED"})
+    void shouldAllowAccessForHealthyOrRecoveredUsers(String status) {
+        String anonymousId = UUID.randomUUID().toString();
+        Mockito.when(valueOps.get("user:status:" + anonymousId)).thenReturn(status);
+
+        QrValidationService.ValidationResult result = service.validateToken(tokenFor(anonymousId));
+
+        assertTrue(result.valid());
+        assertEquals("GREEN", result.status());
+    }
+
+    private String tokenFor(String anonymousId) {
+        Key key = Keys.hmacShaKeyFor(secret.getBytes());
+        return Jwts.builder()
+                .setSubject(anonymousId)
+                .signWith(key, SignatureAlgorithm.HS256)
+                .compact();
     }
 }
