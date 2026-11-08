@@ -63,7 +63,7 @@ for env in "${ENVS[@]}"; do
 done
 
 fail=0
-for p in "${pids[@]}"; do
+for p in ${pids[@]+"${pids[@]}"}; do   # bash 3.2 (macOS): array vacío + set -u
   if wait "${p%%:*}"; then ok "${p#*:} listo (log: $LOG_DIR/bootstrap-env-${p#*:}.log)"
   else warn "${p#*:} falló (log: $LOG_DIR/bootstrap-env-${p#*:}.log)"; fail=1; fi
 done

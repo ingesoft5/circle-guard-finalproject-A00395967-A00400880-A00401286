@@ -1,107 +1,52 @@
-[03:10:36] ✓ Paquetes ya instalados: ca-certificates curl jq openssl git
-[03:10:36] ✓ Docker ya instalado (Docker version 29.9.3)
-[03:10:37] ✓ azureuser ya pertenece a docker
-[03:10:37] ✓ Kernel ya ajustado para SonarQube
-[03:10:37] ✓ Paquetes ya instalados: jq
-[03:10:37] ✓ Registro 20.230.211.66:8082 ya está en insecure-registries
-[03:10:37] ✓ .env ya existe en /opt/cg-tools/.env (no se regeneran secretos)
-[03:10:37] ✓ DOCKER_GID ya es 998
-[03:10:37] Levantando Jenkins, SonarQube y Nexus (la primera vez tarda varios minutos)
+[03:14:09] ✓ Paquetes ya instalados: ca-certificates curl jq openssl git
+[03:14:09] ✓ Docker ya instalado (Docker version 29.9.3)
+[03:14:10] ✓ azureuser ya pertenece a docker
+[03:14:10] ✓ Kernel ya ajustado para SonarQube
+[03:14:10] ✓ Paquetes ya instalados: jq
+[03:14:10] ✓ Registro 20.230.211.66:8082 ya está en insecure-registries
+[03:14:10] ✓ .env ya existe en /opt/cg-tools/.env (no se regeneran secretos)
+[03:14:10] ✓ DOCKER_GID ya es 998
+[03:14:10] Levantando Jenkins, SonarQube y Nexus (la primera vez tarda varios minutos)
  Image circleguard/jenkins:tools Building 
-#1 [internal] load local bake definitions
-#1 reading from stdin 549B done
-#1 DONE 0.0s
-
-#2 [internal] load build definition from Dockerfile
-#2 transferring dockerfile: 1.89kB done
-#2 DONE 0.0s
-
-#3 [internal] load metadata for docker.io/jenkins/jenkins:lts-jdk21
-#3 DONE 0.2s
-
-#4 [internal] load .dockerignore
-#4 transferring context: 2B done
-#4 DONE 0.0s
-
-#5 [internal] load build context
-#5 DONE 0.0s
-
-#6 [1/5] FROM docker.io/jenkins/jenkins:lts-jdk21@sha256:74401de6a6f92e1afe1b02d1c8e3d0c33f263bfb5275dd8813f9150355f2367b
-#6 resolve docker.io/jenkins/jenkins:lts-jdk21@sha256:74401de6a6f92e1afe1b02d1c8e3d0c33f263bfb5275dd8813f9150355f2367b 0.1s done
-#6 DONE 0.1s
-
-#5 [internal] load build context
-#5 transferring context: 33B done
-#5 DONE 0.0s
-
-#7 [4/5] COPY --chown=jenkins:jenkins plugins.txt /usr/share/jenkins/ref/plugins.txt
-#7 CACHED
-
-#8 [2/5] RUN apt-get update  && apt-get install -y --no-install-recommends ca-certificates curl gnupg jq openssh-client  && install -m 0755 -d /etc/apt/keyrings  && curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc  && chmod a+r /etc/apt/keyrings/docker.asc  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable"       > /etc/apt/sources.list.d/docker.list  && apt-get update  && apt-get install -y --no-install-recommends docker-ce-cli docker-compose-plugin docker-buildx-plugin  && rm -rf /var/lib/apt/lists/*
-#8 CACHED
-
-#9 [3/5] RUN curl -fsSL "https://github.com/orhun/git-cliff/releases/download/v2.6.1/git-cliff-2.6.1-x86_64-unknown-linux-gnu.tar.gz"       | tar -xz -C /tmp  && install -m 0755 "/tmp/git-cliff-2.6.1/git-cliff" /usr/local/bin/git-cliff  && rm -rf /tmp/git-cliff-*  && git-cliff --version
-#9 CACHED
-
-#10 [5/5] RUN jenkins-plugin-cli --plugin-file /usr/share/jenkins/ref/plugins.txt
-#10 CACHED
-
-#11 exporting to image
-#11 exporting layers done
-#11 exporting manifest sha256:797282e2b1785cc30b65b416c552917158ca86e846f67e9eded6428f574d51d3 done
-#11 exporting config sha256:8f886b7ae26a82bcf588ecedbfe49f3171f646eb7550fffa66579390df3b5102 done
-#11 exporting attestation manifest sha256:3dded9114c7c4e04fd794b6d5fd6e51efbd46a5c75082f7e0a84639977771a8b 0.0s done
-#11 exporting manifest list sha256:391a524ec07bcafd2b639eaa6ebb70f589e630b724714246c4f1493a1900173f
-#11 exporting manifest list sha256:391a524ec07bcafd2b639eaa6ebb70f589e630b724714246c4f1493a1900173f 0.0s done
-#11 naming to docker.io/circleguard/jenkins:tools 0.0s done
-#11 unpacking to docker.io/circleguard/jenkins:tools 0.0s done
-#11 DONE 0.2s
-
-#12 resolving provenance for metadata file
-#12 DONE 0.0s
  Image circleguard/jenkins:tools Built 
+ Container cg-tools-sonar-db-1 Running 
  Container cg-tools-sonarqube-1 Running 
  Container cg-tools-nexus-1 Running 
  Container cg-tools-jenkins-1 Running 
- Container cg-tools-sonar-db-1 Running 
  Container cg-tools-sonar-db-1 Waiting 
  Container cg-tools-sonar-db-1 Healthy 
+ Container cg-tools-sonar-db-1 Waiting 
  Container cg-tools-sonarqube-1 Waiting 
  Container cg-tools-nexus-1 Waiting 
  Container cg-tools-jenkins-1 Waiting 
- Container cg-tools-sonar-db-1 Waiting 
- Container cg-tools-sonar-db-1 Healthy 
- Container cg-tools-nexus-1 Healthy 
+[03:14:12] ✓ Contenedores healthy
  Container cg-tools-sonarqube-1 Healthy 
+ Container cg-tools-nexus-1 Healthy 
+ Container cg-tools-sonar-db-1 Healthy 
  Container cg-tools-jenkins-1 Healthy 
-[03:10:38] ✓ Contenedores healthy
-[03:10:38] Esperando a que Nexus responda
-[03:10:38] ✓ Contraseña del admin de Nexus ya configurada
-[03:10:38] ✓ Realms activos: NexusAuthenticatingRealm, DockerToken
-[03:10:38] ✓ Acceso anónimo desactivado
-[03:10:38] ✓ Repo Docker 'circleguard' ya existe
-[03:10:38] ✓ Rol cg-docker-push ya existe
-[03:10:38] ✓ Rol cg-docker-pull ya existe
-[03:10:39] ✓ Usuario jenkins-ci ya existe
-[03:10:39] ✓ Usuario deploy-pull ya existe
-[03:10:39] ✓ Nexus listo: registro Docker en :8082 (repo circleguard)
-[03:10:39] Esperando a que SonarQube esté UP
-[03:10:39] ✓ Contraseña del admin de SonarQube ya configurada
-[03:10:39] ✓ Quality gate 'CircleGuard' ya existe
-[03:10:39] ✓ Condición new_coverage LT 60 ya está
-[03:10:39] ✓ Condición blocker_violations GT 0 ya está
-[03:10:39] ✓ Condición vulnerabilities GT 0 ya está
-[03:10:39] ✓ Quality gate por defecto: CircleGuard
-[03:10:39] ✓ Webhook a Jenkins ya existe
-[03:10:39] ✓ Token de Jenkins ya generado (/opt/cg-tools/sonar-jenkins.token)
-[03:10:39] ✓ SonarQube listo
-[03:10:39] ✓ docker login a 20.230.211.66:8082 con jenkins-ci funciona
-[03:10:39] ✓ Paquetes ya instalados: ufw
-[03:10:39] ✓ Paquetes ya instalados: ufw
-[03:10:40] ✓ Paquetes ya instalados: ufw
-[03:10:40] ✓ Paquetes ya instalados: ufw
-[03:10:40] ✓ Paquetes ya instalados: ufw
-[03:10:40] ✓ ufw ya activo
+[03:14:12] Esperando a que Nexus responda
+[03:14:12] ✓ Contraseña del admin de Nexus ya configurada
+[03:14:12] ✓ Realms activos: NexusAuthenticatingRealm, DockerToken
+[03:14:12] ✓ Acceso anónimo desactivado
+[03:14:12] ✓ Repo Docker 'circleguard' ya existe
+[03:14:12] ✓ Rol cg-docker-push ya existe
+[03:14:12] ✓ Rol cg-docker-pull ya existe
+[03:14:12] ✓ Usuario jenkins-ci ya existe
+[03:14:12] ✓ Usuario deploy-pull ya existe
+[03:14:12] ✓ Nexus listo: registro Docker en :8082 (repo circleguard)
+[03:14:12] Esperando a que SonarQube esté UP
+[03:14:12] ✓ Contraseña del admin de SonarQube ya configurada
+[03:14:12] ✓ Quality gate 'CircleGuard' ya existe
+[03:14:12] ✓ Condición new_coverage LT 60 ya está
+[03:14:12] ✓ Condición blocker_violations GT 0 ya está
+[03:14:12] ✓ Condición vulnerabilities GT 0 ya está
+[03:14:13] ✓ Quality gate por defecto: CircleGuard
+[03:14:13] ✓ Webhook a Jenkins ya existe
+[03:14:13] ✓ Token de Jenkins ya generado (/opt/cg-tools/sonar-jenkins.token)
+[03:14:13] ✓ SonarQube listo
+[03:14:13] ✓ docker login a 20.230.211.66:8082 con jenkins-ci funciona
+[03:14:13] ✓ Paquetes ya instalados: ufw
+[03:14:13] ✓ ufw ya activo
 
 ────────────────────────────────────────────────────────────────────────
  Servidor de herramientas listo
@@ -118,4 +63,3 @@
 
  Ver un secreto:  sudo grep NEXUS_CI_PASSWORD /opt/cg-tools/.env
 ────────────────────────────────────────────────────────────────────────
-Código de salida: 0
