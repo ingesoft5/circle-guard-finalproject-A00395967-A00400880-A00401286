@@ -21,14 +21,15 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 class IdentityClientTest {
 
-    private static final String URL = "http://localhost:8083/api/v1/identities/map";
+    private static final String BASE_URL = "http://identity.test:9999";
+    private static final String URL = BASE_URL + "/api/v1/identities/map";
 
     private IdentityClient client;
     private MockRestServiceServer server;
 
     @BeforeEach
     void setUp() {
-        client = new IdentityClient();
+        client = new IdentityClient(BASE_URL);
         // IdentityClient builds its own RestTemplate; bind a mock server to it so no real HTTP is made.
         RestTemplate restTemplate = (RestTemplate) ReflectionTestUtils.getField(client, "restTemplate");
         server = MockRestServiceServer.bindTo(restTemplate).build();
