@@ -75,3 +75,32 @@ El quality gate, la publicación en Nexus, los despliegues, los E2E y las notifi
 - **`REGISTRY` no llegaba al compose.** El compose de Luis usa `${REGISTRY}`; el deploy ahora lo exporta desde `CG_REGISTRY`.
 
 **Lección:** varias suposiciones de la IA (y de la guía) solo se pudieron confirmar ejecutando el pipeline. Probar en un Jenkins local antes de tener los servidores permitió encontrar estos errores a tiempo.
+
+### Sesión 3 (8 de noviembre de 2026): servidor, releases y rollback
+
+**Contenido propio entregado a la IA:** las respuestas de Luis y Darío (IPs de los servidores, variables de Jenkins, orden de merge, ajustes de SonarQube), los logs de Jenkins del servidor y las capturas de pantalla de Jenkins, GitHub y Discord.
+
+**Prompts empleados (resumen):**
+1. Apoyo en la configuración de Jenkins en el servidor (credenciales, variables, SonarQube, Shared Library, jobs multibranch y de rollback).
+2. Análisis de los fallos del pipeline (quality gate, E2E, versionado, rollback) y sus correcciones.
+3. Apoyo para organizar las evidencias y el documento para el informe.
+
+**Qué produjo la IA y qué revisé:**
+
+| Tema | Resultado |
+|---|---|
+| Jenkins del servidor | Pasos de configuración; las credenciales las ingresé yo directamente en Jenkins, sin compartirlas |
+| Quality gate (CG-53) | PR de demostración #26 bloqueado por SonarQube |
+| E2E (CG-57) | Corrección de selectores (#33), verificada contra dev antes de subirla: 9/9 |
+| Release v1.0.1 | Corrección del gateway (#34) con pruebas; recorrió dev → E2E → stage → aprobación → prod |
+| Rollback (CG-61) | Corrección del job (#35); rechazo y rollback de prod demostrados |
+
+**Errores que encontramos y cómo se corrigieron (revisión crítica):**
+
+- **El quality gate siempre daba OK.** La configuración de Sonar que se agregó en el PR #3 omitía el proyecto intermedio `:services`, y con él todos los servicios: Sonar analizaba 0 líneas de Java. Darío lo detectó y lo corrigió (PR #29). Lección: un gate que nunca falla hay que probarlo con código malo a propósito (PR #26).
+- **La v1.0.0 no pasó de dev.** Los selectores E2E coincidían con varios elementos o con el fondo oculto. El pipeline bloqueó la promoción a stage, como debía. Se corrigieron los selectores y se verificaron contra dev antes del siguiente release.
+- **Relanzar main no generaba versión.** Los commits `test` y `docs` no generan release según semver; hizo falta un `fix` real (el gateway dejaba entrar a usuarios CONFIRMED, PR #34).
+- **El job de rollback no arrancaba.** Un `node {}` directo dentro de `post` en un pipeline declarativo se interpreta como directiva de agente. No se había probado en el servidor; se corrigió con una función auxiliar (PR #35).
+- **Jenkins borraba los builds de los PRs cerrados.** Se configuró para conservarlos 7 días y no perder evidencias.
+
+**Lección:** el código del pipeline (sugerido o propio) tiene que probarse en el ambiente real; varios errores solo aparecieron al ejecutar en el servidor. Probar cada corrección antes de subirla (por ejemplo, los E2E contra dev) evitó gastar releases.
