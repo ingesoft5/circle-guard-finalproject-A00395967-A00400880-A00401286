@@ -1,0 +1,65 @@
+[03:14:09] ✓ Paquetes ya instalados: ca-certificates curl jq openssl git
+[03:14:09] ✓ Docker ya instalado (Docker version 29.9.3)
+[03:14:10] ✓ azureuser ya pertenece a docker
+[03:14:10] ✓ Kernel ya ajustado para SonarQube
+[03:14:10] ✓ Paquetes ya instalados: jq
+[03:14:10] ✓ Registro 20.230.211.66:8082 ya está en insecure-registries
+[03:14:10] ✓ .env ya existe en /opt/cg-tools/.env (no se regeneran secretos)
+[03:14:10] ✓ DOCKER_GID ya es 998
+[03:14:10] Levantando Jenkins, SonarQube y Nexus (la primera vez tarda varios minutos)
+ Image circleguard/jenkins:tools Building 
+ Image circleguard/jenkins:tools Built 
+ Container cg-tools-sonar-db-1 Running 
+ Container cg-tools-sonarqube-1 Running 
+ Container cg-tools-nexus-1 Running 
+ Container cg-tools-jenkins-1 Running 
+ Container cg-tools-sonar-db-1 Waiting 
+ Container cg-tools-sonar-db-1 Healthy 
+ Container cg-tools-sonar-db-1 Waiting 
+ Container cg-tools-sonarqube-1 Waiting 
+ Container cg-tools-nexus-1 Waiting 
+ Container cg-tools-jenkins-1 Waiting 
+[03:14:12] ✓ Contenedores healthy
+ Container cg-tools-sonarqube-1 Healthy 
+ Container cg-tools-nexus-1 Healthy 
+ Container cg-tools-sonar-db-1 Healthy 
+ Container cg-tools-jenkins-1 Healthy 
+[03:14:12] Esperando a que Nexus responda
+[03:14:12] ✓ Contraseña del admin de Nexus ya configurada
+[03:14:12] ✓ Realms activos: NexusAuthenticatingRealm, DockerToken
+[03:14:12] ✓ Acceso anónimo desactivado
+[03:14:12] ✓ Repo Docker 'circleguard' ya existe
+[03:14:12] ✓ Rol cg-docker-push ya existe
+[03:14:12] ✓ Rol cg-docker-pull ya existe
+[03:14:12] ✓ Usuario jenkins-ci ya existe
+[03:14:12] ✓ Usuario deploy-pull ya existe
+[03:14:12] ✓ Nexus listo: registro Docker en :8082 (repo circleguard)
+[03:14:12] Esperando a que SonarQube esté UP
+[03:14:12] ✓ Contraseña del admin de SonarQube ya configurada
+[03:14:12] ✓ Quality gate 'CircleGuard' ya existe
+[03:14:12] ✓ Condición new_coverage LT 60 ya está
+[03:14:12] ✓ Condición blocker_violations GT 0 ya está
+[03:14:12] ✓ Condición vulnerabilities GT 0 ya está
+[03:14:13] ✓ Quality gate por defecto: CircleGuard
+[03:14:13] ✓ Webhook a Jenkins ya existe
+[03:14:13] ✓ Token de Jenkins ya generado (/opt/cg-tools/sonar-jenkins.token)
+[03:14:13] ✓ SonarQube listo
+[03:14:13] ✓ docker login a 20.230.211.66:8082 con jenkins-ci funciona
+[03:14:13] ✓ Paquetes ya instalados: ufw
+[03:14:13] ✓ ufw ya activo
+
+────────────────────────────────────────────────────────────────────────
+ Servidor de herramientas listo
+   Jenkins    http://20.230.211.66:8080   contraseña inicial: <redactado>
+   SonarQube  http://20.230.211.66:9000   admin / SONAR_ADMIN_PASSWORD
+   Nexus      http://20.230.211.66:8081   admin / NEXUS_ADMIN_PASSWORD
+   Registro   20.230.211.66:8082  (CG_REGISTRY en Jenkins)
+
+ Secretos (solo en este servidor, chmod 600):
+   /opt/cg-tools/.env
+   /opt/cg-tools/sonar-jenkins.token   -> credencial 'sonar-token' de Jenkins
+   NEXUS_CI_USER/PASSWORD      -> credencial 'nexus-docker' de Jenkins
+   NEXUS_PULL_USER/PASSWORD    -> lo usa bootstrap-env.sh en cada ambiente
+
+ Ver un secreto:  sudo grep NEXUS_CI_PASSWORD /opt/cg-tools/.env
+────────────────────────────────────────────────────────────────────────

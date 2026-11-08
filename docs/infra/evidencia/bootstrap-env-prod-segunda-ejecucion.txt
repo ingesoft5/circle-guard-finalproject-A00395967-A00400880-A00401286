@@ -1,0 +1,24 @@
+[03:13:18] Preparando ambiente 'prod' en cg-prod
+[03:13:18] ✓ Paquetes ya instalados: ca-certificates curl jq openssl
+[03:13:18] ✓ Docker ya instalado (Docker version 29.9.3)
+[03:13:18] ✓ Swap ya configurada
+[03:13:18] ✓ Usuario deploy ya existe
+[03:13:18] ✓ deploy ya pertenece a docker
+[03:13:18] ✓ Llave de Jenkins ya autorizada
+[03:13:18] ✓ Paquetes ya instalados: jq
+[03:13:18] ✓ Registro 20.230.211.66:8082 ya está en insecure-registries
+[03:13:18] ✓ deploy ya tiene docker login en 20.230.211.66:8082
+[03:13:18] ✓ /opt/circleguard/init-db.sql ya está al día
+[03:13:18] ! No existe deploy/docker-compose.yml (¿ya se fusionó el PR del compose de Luis?)
+[03:13:18] ! No existe deploy/prod/docker-compose.override.yml (¿ya se fusionó el PR del compose de Luis?)
+[03:13:18] ✓ .env de prod ya existe (no se regeneran secretos)
+[03:13:18] ✓ Paquetes ya instalados: ufw
+[03:13:18] ✓ ufw ya activo
+[03:13:18] ✓ deploy puede usar Docker
+
+────────────────────────────────────────────────────────────────────────
+ Ambiente prod listo en /opt/circleguard/prod
+   Jenkins entra con:  ssh deploy@<ip-de-esta-vm>
+   Cliente web:        http://<ip-de-esta-vm>:80
+   Registro:           20.230.211.66:8082 (login de solo lectura: deploy-pull)
+────────────────────────────────────────────────────────────────────────

@@ -1,0 +1,39 @@
+[22:07:21] Suscripción: Azure for Students · acceso de administración desde <ip-equipo>/32
+[22:07:22] ✓ Grupo circleguard-rg ya existe
+[22:07:23] ✓ VNet cg-vnet-chilecentral ya existe
+[22:07:24] ✓ VNet cg-vnet-westus2 ya existe
+[22:07:29] ✓ IP pública cg-tools-ip ya existe
+[22:07:34] ✓ IP pública cg-dev-ip ya existe
+[22:07:40] ✓ IP pública cg-stage-ip ya existe
+[22:07:45] ✓ IP pública cg-prod-ip ya existe
+[22:07:54] ✓ NSG cg-tools-nsg ya existe
+[22:08:00] ✓ Regla cg-tools-nsg/ssh-admin al día
+[22:08:05] ✓ Regla cg-tools-nsg/jenkins al día
+[22:08:09] ✓ Regla cg-tools-nsg/sonar al día
+[22:08:13] ✓ Regla cg-tools-nsg/nexus-ui al día
+[22:08:17] ✓ Regla cg-tools-nsg/registry al día
+[22:08:21] ✓ NSG cg-dev-nsg ya existe
+[22:08:25] ✓ Regla cg-dev-nsg/ssh-jenkins-admin al día
+[22:08:29] ✓ Regla cg-dev-nsg/web al día
+[22:08:35] ✓ NSG cg-stage-nsg ya existe
+[22:08:39] ✓ Regla cg-stage-nsg/ssh-jenkins-admin al día
+[22:08:45] ✓ Regla cg-stage-nsg/web al día
+[22:08:50] ✓ NSG cg-prod-nsg ya existe
+[22:08:54] ✓ Regla cg-prod-nsg/ssh-jenkins-admin al día
+[22:09:01] ✓ Regla cg-prod-nsg/web al día
+[22:09:05] ✓ VM cg-tools ya existe (Standard_B4s_v2)
+[22:09:07] ✓ VM cg-dev ya existe (Standard_B2s_v2)
+[22:09:10] ✓ VM cg-stage ya existe (Standard_B2s_v2)
+[22:09:13] ✓ VM cg-prod ya existe (Standard_B2s_v2)
+[22:09:13] ✓ Infraestructura lista
+Vm        Region        Size             Power       PublicIp       PrivateIp
+--------  ------------  ---------------  ----------  -------------  -----------
+cg-dev    westus2       Standard_B2s_v2  VM running  20.114.42.226  10.10.1.5
+cg-tools  westus2       Standard_B4s_v2  VM running  20.230.211.66  10.10.1.4
+cg-prod   chilecentral  Standard_B2s_v2  VM running  57.156.59.208  10.10.1.5
+cg-stage  chilecentral  Standard_B2s_v2  VM running  57.156.56.122  10.10.1.4
+
+Siguiente paso:
+  tools:  ssh azureuser@20.230.211.66   y   sudo REGISTRY_HOST=20.230.211.66 ./infra/bootstrap/bootstrap-tools.sh
+  envs:   sudo REGISTRY=20.230.211.66:8082 NEXUS_PULL_PASSWORD=... ./infra/bootstrap/bootstrap-env.sh <dev|stage|prod>
+Apagar sin borrar (deja de cobrar cómputo):  az vm deallocate --ids $(az vm list -g circleguard-rg --query "[].id" -o tsv)
