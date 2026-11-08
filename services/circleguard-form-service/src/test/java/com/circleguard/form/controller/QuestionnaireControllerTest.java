@@ -10,6 +10,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -59,5 +60,35 @@ class QuestionnaireControllerTest {
                 .content("{\"title\": \"New Survey\", \"version\": 1}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.title").value("New Survey"));
+    }
+
+    @Test
+    void getAll_returnsEveryQuestionnaire() throws Exception {
+        Questionnaire v1 = Questionnaire.builder().id(UUID.randomUUID()).title("v1").version(1).build();
+        Questionnaire v2 = Questionnaire.builder().id(UUID.randomUUID()).title("v2").version(2).build();
+        Mockito.when(questionnaireService.getAllQuestionnaires()).thenReturn(List.of(v1, v2));
+
+        mockMvc.perform(get("/api/v1/questionnaires"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[1].version").value(2));
+    }
+
+    @Test
+    void getActive_whenNoneActive_returns404() throws Exception {
+        Mockito.when(questionnaireService.getActiveQuestionnaire()).thenReturn(Optional.empty());
+
+        mockMvc.perform(get("/api/v1/questionnaires/active"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void activate_delegatesToServiceWithPathId() throws Exception {
+        UUID id = UUID.randomUUID();
+
+        mockMvc.perform(post("/api/v1/questionnaires/{id}/activate", id))
+                .andExpect(status().isOk());
+
+        Mockito.verify(questionnaireService).activateQuestionnaire(id);
     }
 }

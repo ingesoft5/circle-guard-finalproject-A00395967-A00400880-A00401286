@@ -55,4 +55,44 @@ class SymptomMapperTest {
         
         assertFalse(mapper.hasSymptoms(survey, questionnaire));
     }
+
+    @Test
+    void shouldNotDetectSymptomsWhenSurveyHasNoResponses() {
+        Questionnaire questionnaire = Questionnaire.builder().questions(List.of()).build();
+        HealthSurvey survey = HealthSurvey.builder().build();
+
+        assertFalse(mapper.hasSymptoms(survey, questionnaire));
+    }
+
+    @Test
+    void shouldDetectSymptomsWhenSymptomChecklistHasSelection() {
+        UUID questionId = UUID.randomUUID();
+        Question q = Question.builder()
+                .id(questionId)
+                .text("Select your symptoms")
+                .type(QuestionType.MULTI_CHOICE)
+                .build();
+        Questionnaire questionnaire = Questionnaire.builder().questions(List.of(q)).build();
+        HealthSurvey survey = HealthSurvey.builder()
+                .responses(Map.of(questionId.toString(), List.of("Headache")))
+                .build();
+
+        assertTrue(mapper.hasSymptoms(survey, questionnaire));
+    }
+
+    @Test
+    void shouldNotDetectSymptomsWhenSymptomChecklistIsEmpty() {
+        UUID questionId = UUID.randomUUID();
+        Question q = Question.builder()
+                .id(questionId)
+                .text("Select your symptoms")
+                .type(QuestionType.MULTI_CHOICE)
+                .build();
+        Questionnaire questionnaire = Questionnaire.builder().questions(List.of(q)).build();
+        HealthSurvey survey = HealthSurvey.builder()
+                .responses(Map.of(questionId.toString(), List.of()))
+                .build();
+
+        assertFalse(mapper.hasSymptoms(survey, questionnaire));
+    }
 }
