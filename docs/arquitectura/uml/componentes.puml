@@ -1,77 +1,103 @@
 @startuml componentes
-' Diagrama de componentes UML de CircleGuard (aplicación).
-' Fuente de verdad: application.yml de cada servicio, mobile/nginx/default.conf
-' y los @KafkaListener / KafkaTemplate del código.
+' Diagrama de componentes UML de CircleGuard con interfaces provistas
+' (círculo) y requeridas (semicírculo).
+' Fuente de verdad: @RequestMapping de cada servicio, mobile/nginx/default.conf,
+' application.yml y los @KafkaListener / KafkaTemplate del código.
 skinparam monochrome true
 skinparam shadowing false
 skinparam defaultFontName Arial
 skinparam componentStyle uml2
-left to right direction
-skinparam nodesep 30
-skinparam ranksep 70
+skinparam nodesep 40
+skinparam ranksep 60
 title CircleGuard: diagrama de componentes
 
 actor "Usuario\n(navegador)" as user
 actor "Torniquete\n(lector QR)" as turnstile
 
-component "web\n(nginx :80)" as web {
-  portin " /svc/*" as svc
+' ---- Entrada
+() "HTTP :80" as IHttp
+component "web\n(nginx + cliente Expo)" as web
+IHttp -- web
+user --( IHttp
+turnstile --( IHttp
+
+package "Microservicios Spring Boot" {
+  component "auth-service" as auth
+  component "identity-service" as identity
+  component "form-service" as form
+  component "promotion-service" as promotion
+  component "gateway-service" as gateway
+  component "notification-service" as notification
+  component "dashboard-service" as dashboard
+  component "file-service" as file
 }
 
-package "Microservicios Spring Boot (red interna de Docker)" {
-  component "auth-service\n:8180" as auth
-  component "identity-service\n:8083" as identity
-  component "form-service\n:8086" as form
-  component "promotion-service\n:8088" as promotion
-  component "gateway-service\n:8087" as gateway
-  component "notification-service\n:8082" as notification
-  component "dashboard-service\n:8084" as dashboard
-  component "file-service\n:8085" as file
-}
+' ---- Interfaces REST provistas por cada servicio
+() "IAuth\n/api/v1/auth, /api/v1/users" as IAuth
+() "IIdentity\n/api/v1/identities" as IIdentity
+() "IForms\n/api/v1/surveys, questionnaires" as IForms
+() "IHealthStatus\n/api/v1/health-status" as IHealth
+() "IGate\n/api/v1/gate/validate" as IGate
+() "IAnalytics\n/api/v1/analytics" as IAnalytics
+() "IFiles\n/api/v1/files" as IFiles
+
+IAuth -- auth
+IIdentity -- identity
+IForms -- form
+IHealth -- promotion
+IGate -- gateway
+IAnalytics -- dashboard
+IFiles -- file
+
+' nginx (/svc/<servicio>/) requiere las APIs que expone al navegador
+web --( IAuth
+web --( IForms
+web --( IGate
+web --( IAnalytics
+web --( IFiles
+
+' Llamadas REST entre servicios
+auth --( IIdentity
+notification --( IAuth
+notification --( IIdentity
+dashboard --( IHealth
 
 package "Middleware" {
-  database "PostgreSQL 16" as pg
-  database "Neo4j 5.26" as neo4j
-  database "Redis 7.2" as redis
-  queue "Kafka 7.6\n(+ Zookeeper)" as kafka
+  component "PostgreSQL 16" as pg
+  component "Neo4j 5.26" as neo4j
+  component "Redis 7.2" as redis
+  component "Kafka 7.6\n+ Zookeeper" as kafka
   component "OpenLDAP 1.5" as ldap
 }
 
-user --> web : HTTP :80
-turnstile --> web : POST /svc/gateway/api/v1/gate/validate
+() "JDBC" as IJdbc
+() "Bolt" as IBolt
+() "RESP\n(user:status)" as IResp
+() "Kafka\n(tópicos)" as IKafka
+() "LDAP" as ILdap
+IJdbc -- pg
+neo4j - IBolt
+IResp -- redis
+IKafka -- kafka
+ILdap -- ldap
 
-web --> auth : /svc/auth/
-web --> identity : /svc/identity/
-web --> form : /svc/form/
-web --> promotion : /svc/promotion/
-web --> gateway : /svc/gateway/
-web --> notification : /svc/notification/
-web --> dashboard : /svc/dashboard/
-web --> file : /svc/file/
+auth --( IJdbc
+auth --( ILdap
+identity --( IJdbc
+form --( IJdbc
+promotion --( IJdbc
+dashboard --( IJdbc
+promotion --( IBolt
+promotion --( IResp
+gateway --( IResp
+form --( IKafka
+promotion --( IKafka
+notification --( IKafka
 
-auth --> identity : REST /api/v1/identities/map
-auth --> ldap : LDAP
-auth --> pg
-identity --> pg
-form --> pg
-promotion --> pg
-promotion --> neo4j : grafo de contactos
-promotion --> redis : user:status
-gateway --> redis : consulta user:status
-dashboard --> promotion : REST /health-status/stats
-dashboard --> pg
-notification --> auth : REST contactos
-notification --> identity : REST
-
-form ..> kafka : survey.submitted\ncertificate.validated
-kafka ..> promotion : consume
-promotion ..> kafka : promotion.status.changed\nalert.priority
-kafka ..> notification : consume
-notification ..> kafka : notification.audit
-
-note bottom of gateway
-  Valida el QR firmado por auth
-  (JWT de corta duración) y niega el
-  acceso a SUSPECT, PROBABLE y CONFIRMED.
+note right of kafka
+  form publica survey.submitted y certificate.validated
+  promotion los consume y publica
+  promotion.status.changed y alert.priority
+  notification consume y publica notification.audit
 end note
 @enduml

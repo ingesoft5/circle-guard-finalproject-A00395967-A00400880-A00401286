@@ -1,74 +1,86 @@
 @startuml despliegue
-' Diagrama de despliegue UML de CircleGuard en Azure (Parte 1).
-' Fuente de verdad: infra/azure/provision.sh, infra/bootstrap/ y deploy/.
+' Diagrama de despliegue UML de CircleGuard en Azure (Parte 1), con las
+' interfaces que expone cada nodo (círculo) y las que requiere (semicírculo).
+' Fuente de verdad: infra/azure/provision.sh (NSG), infra/bootstrap/ y deploy/.
 skinparam monochrome true
 skinparam shadowing false
 skinparam defaultFontName Arial
+skinparam nodesep 40
+skinparam ranksep 55
 title CircleGuard: diagrama de despliegue (Azure)
 
-cloud "GitHub\n(repositorio privado)" as github
-node "Discord\ncanal circleguard-ci" as discord
+cloud "GitHub" as github
 actor "Usuarios" as users
-actor "Equipo\n(ADMIN_CIDR)" as admin
 
-node "Región westus2" {
-  node "cg-tools\n<<VM Standard_B4s_v2>>\n4 vCPU, 16 GB\n20.230.211.66" as tools {
-    node "Docker Engine" as tdock {
-      artifact "jenkins\n:8080" as jenkins
-      artifact "sonarqube 10.7\n:9000" as sonar
-      artifact "postgres\n(sonar-db)" as sonardb
-      artifact "nexus 3.70\nUI :8081, registro :8082" as nexus
-    }
+() "Webhook\nHTTP :8080" as IWebhook
+() "Registro Docker\nHTTP :8082" as IRegistry
+() "Notificaciones\n(webhook)" as IDiscord
+
+node "westus2" {
+  node "cg-tools\n<<VM B4s_v2: 4 vCPU, 16 GB>>\n20.230.211.66" as tools {
+    artifact "jenkins" as jenkins
+    artifact "sonarqube 10.7\n+ postgres" as sonar
+    artifact "nexus 3.70" as nexus
   }
-  node "cg-dev\n<<VM Standard_B2s_v2>>\n2 vCPU, 8 GB\n20.114.42.226" as dev {
-    node "Docker Compose (dev)" as cdev {
-      artifact "web (nginx :80)\n8 servicios vX.Y.Z\nmiddleware" as appdev
-    }
+  node "cg-dev\n<<VM B2s_v2: 2 vCPU, 8 GB>>\n20.114.42.226" as dev {
+    artifact "compose dev\nweb + 8 servicios + middleware\n(imágenes vX.Y.Z)" as appdev
   }
 }
 
-node "Región chilecentral" {
-  node "cg-stage\n<<VM Standard_B2s_v2>>\n2 vCPU, 8 GB\n57.156.56.122" as stage {
-    node "Docker Compose (stage)" as cstage {
-      artifact "web (nginx :80)\n8 servicios vX.Y.Z\nmiddleware" as appstage
-    }
+node "chilecentral" {
+  node "cg-stage\n<<VM B2s_v2: 2 vCPU, 8 GB>>\n57.156.56.122" as stage {
+    artifact "compose stage\n(misma imagen)" as appstage
   }
-  node "cg-prod\n<<VM Standard_B2s_v2>>\n2 vCPU, 8 GB\n57.156.59.208" as prod {
-    node "Docker Compose (prod)" as cprod {
-      artifact "web (nginx :80)\n8 servicios vX.Y.Z\nmiddleware" as appprod
-    }
+  node "cg-prod\n<<VM B2s_v2: 2 vCPU, 8 GB>>\n57.156.59.208" as prod {
+    artifact "compose prod\n(misma imagen)" as appprod
   }
 }
 
-github --> jenkins : webhook HTTP :8080
-jenkins --> github : estado del check, tag y release
-sonar --> jenkins : webhook del quality gate
-sonar --> sonardb
-jenkins --> sonar : análisis
-jenkins --> nexus : docker push :8082
-jenkins --> discord : notificaciones HTTPS
+node "Discord" as discord
 
-jenkins --> dev : SSH :22 (deploy)\ncompose pull + up --wait
-jenkins --> stage : SSH :22 (deploy)
-jenkins --> prod : SSH :22 (deploy)
-jenkins --> appdev : E2E Playwright HTTP :80
+() "SSH :22" as ISshDev
+() "SSH :22 " as ISshStage
+() "SSH :22  " as ISshProd
+() "HTTP :80" as IWebDev
+() "HTTP :80 " as IWebStage
+() "HTTP :80  " as IWebProd
 
-dev ..> nexus : docker pull :8082
-stage ..> nexus : docker pull :8082
-prod ..> nexus : docker pull :8082
+' ---- Interfaces provistas (abiertas en el NSG)
+IWebhook -- jenkins
+IRegistry -- nexus
+IDiscord -- discord
+ISshDev -- dev
+ISshStage -- stage
+ISshProd -- prod
+IWebDev -- appdev
+IWebStage -- appstage
+IWebProd -- appprod
 
-users --> appdev : HTTP :80
-users --> appstage : HTTP :80
-users --> appprod : HTTP :80
-admin --> tools : SSH :22, UIs :9000/:8081
+' ---- Interfaces requeridas
+github --( IWebhook
+jenkins --( IRegistry
+jenkins --( ISshDev
+jenkins --( ISshStage
+jenkins --( ISshProd
+jenkins --( IWebDev
+jenkins --( IDiscord
+appdev --( IRegistry
+appstage --( IRegistry
+appprod --( IRegistry
+users --( IWebDev
+users --( IWebStage
+users --( IWebProd
+jenkins ..> sonar : análisis y quality gate
+jenkins ..> github : check, tag y release
 
-note bottom of tools
-  NSG: 8080 abierto (webhook); 22, 9000 y 8081
-  solo ADMIN_CIDR; 8082 solo las IPs de las 4 VMs.
+note right of tools
+  NSG de cg-tools: :8080 abierto (webhook);
+  :22, :9000 y :8081 solo para el equipo;
+  :8082 solo para las 4 VMs.
 end note
-note bottom of prod
-  NSG de cada ambiente: 80 abierto;
-  22 solo desde cg-tools y ADMIN_CIDR.
+note right of prod
+  NSG de cada ambiente: :80 abierto;
+  :22 solo desde cg-tools y el equipo.
   Los backends no publican puertos.
 end note
 @enduml
