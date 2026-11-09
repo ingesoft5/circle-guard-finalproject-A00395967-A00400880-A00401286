@@ -1,0 +1,77 @@
+@startuml componentes
+' Diagrama de componentes UML de CircleGuard (aplicación).
+' Fuente de verdad: application.yml de cada servicio, mobile/nginx/default.conf
+' y los @KafkaListener / KafkaTemplate del código.
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam componentStyle uml2
+left to right direction
+skinparam nodesep 30
+skinparam ranksep 70
+title CircleGuard: diagrama de componentes
+
+actor "Usuario\n(navegador)" as user
+actor "Torniquete\n(lector QR)" as turnstile
+
+component "web\n(nginx :80)" as web {
+  portin " /svc/*" as svc
+}
+
+package "Microservicios Spring Boot (red interna de Docker)" {
+  component "auth-service\n:8180" as auth
+  component "identity-service\n:8083" as identity
+  component "form-service\n:8086" as form
+  component "promotion-service\n:8088" as promotion
+  component "gateway-service\n:8087" as gateway
+  component "notification-service\n:8082" as notification
+  component "dashboard-service\n:8084" as dashboard
+  component "file-service\n:8085" as file
+}
+
+package "Middleware" {
+  database "PostgreSQL 16" as pg
+  database "Neo4j 5.26" as neo4j
+  database "Redis 7.2" as redis
+  queue "Kafka 7.6\n(+ Zookeeper)" as kafka
+  component "OpenLDAP 1.5" as ldap
+}
+
+user --> web : HTTP :80
+turnstile --> web : POST /svc/gateway/api/v1/gate/validate
+
+web --> auth : /svc/auth/
+web --> identity : /svc/identity/
+web --> form : /svc/form/
+web --> promotion : /svc/promotion/
+web --> gateway : /svc/gateway/
+web --> notification : /svc/notification/
+web --> dashboard : /svc/dashboard/
+web --> file : /svc/file/
+
+auth --> identity : REST /api/v1/identities/map
+auth --> ldap : LDAP
+auth --> pg
+identity --> pg
+form --> pg
+promotion --> pg
+promotion --> neo4j : grafo de contactos
+promotion --> redis : user:status
+gateway --> redis : consulta user:status
+dashboard --> promotion : REST /health-status/stats
+dashboard --> pg
+notification --> auth : REST contactos
+notification --> identity : REST
+
+form ..> kafka : survey.submitted\ncertificate.validated
+kafka ..> promotion : consume
+promotion ..> kafka : promotion.status.changed\nalert.priority
+kafka ..> notification : consume
+notification ..> kafka : notification.audit
+
+note bottom of gateway
+  Valida el QR firmado por auth
+  (JWT de corta duración) y niega el
+  acceso a SUSPECT, PROBABLE y CONFIRMED.
+end note
+@enduml
