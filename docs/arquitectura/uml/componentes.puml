@@ -1,0 +1,103 @@
+@startuml componentes
+' Diagrama de componentes UML de CircleGuard con interfaces provistas
+' (círculo) y requeridas (semicírculo).
+' Fuente de verdad: @RequestMapping de cada servicio, mobile/nginx/default.conf,
+' application.yml y los @KafkaListener / KafkaTemplate del código.
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam componentStyle uml2
+skinparam nodesep 40
+skinparam ranksep 60
+title CircleGuard: diagrama de componentes
+
+actor "Usuario\n(navegador)" as user
+actor "Torniquete\n(lector QR)" as turnstile
+
+' ---- Entrada
+() "HTTP :80" as IHttp
+component "web\n(nginx + cliente Expo)" as web
+IHttp -- web
+user --( IHttp
+turnstile --( IHttp
+
+package "Microservicios Spring Boot" {
+  component "auth-service" as auth
+  component "identity-service" as identity
+  component "form-service" as form
+  component "promotion-service" as promotion
+  component "gateway-service" as gateway
+  component "notification-service" as notification
+  component "dashboard-service" as dashboard
+  component "file-service" as file
+}
+
+' ---- Interfaces REST provistas por cada servicio
+() "IAuth\n/api/v1/auth, /api/v1/users" as IAuth
+() "IIdentity\n/api/v1/identities" as IIdentity
+() "IForms\n/api/v1/surveys, questionnaires" as IForms
+() "IHealthStatus\n/api/v1/health-status" as IHealth
+() "IGate\n/api/v1/gate/validate" as IGate
+() "IAnalytics\n/api/v1/analytics" as IAnalytics
+() "IFiles\n/api/v1/files" as IFiles
+
+IAuth -- auth
+IIdentity -- identity
+IForms -- form
+IHealth -- promotion
+IGate -- gateway
+IAnalytics -- dashboard
+IFiles -- file
+
+' nginx (/svc/<servicio>/) requiere las APIs que expone al navegador
+web --( IAuth
+web --( IForms
+web --( IGate
+web --( IAnalytics
+web --( IFiles
+
+' Llamadas REST entre servicios
+auth --( IIdentity
+notification --( IAuth
+notification --( IIdentity
+dashboard --( IHealth
+
+package "Middleware" {
+  component "PostgreSQL 16" as pg
+  component "Neo4j 5.26" as neo4j
+  component "Redis 7.2" as redis
+  component "Kafka 7.6\n+ Zookeeper" as kafka
+  component "OpenLDAP 1.5" as ldap
+}
+
+() "JDBC" as IJdbc
+() "Bolt" as IBolt
+() "RESP\n(user:status)" as IResp
+() "Kafka\n(tópicos)" as IKafka
+() "LDAP" as ILdap
+IJdbc -- pg
+neo4j - IBolt
+IResp -- redis
+IKafka -- kafka
+ILdap -- ldap
+
+auth --( IJdbc
+auth --( ILdap
+identity --( IJdbc
+form --( IJdbc
+promotion --( IJdbc
+dashboard --( IJdbc
+promotion --( IBolt
+promotion --( IResp
+gateway --( IResp
+form --( IKafka
+promotion --( IKafka
+notification --( IKafka
+
+note right of kafka
+  form publica survey.submitted y certificate.validated
+  promotion los consume y publica
+  promotion.status.changed y alert.priority
+  notification consume y publica notification.audit
+end note
+@enduml

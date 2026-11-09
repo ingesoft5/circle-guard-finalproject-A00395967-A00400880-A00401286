@@ -49,7 +49,7 @@ flowchart LR
 | 1 | Checkout | PR y main | | `checkout scm` |
 | 2 | Detectar cambios | PR y main | | `cgChangedServices` |
 | 3 | Compilar | PR y main | Falla si no compila | `cgBuild` |
-| 4 | Pruebas unitarias + JaCoCo | PR y main | Falla si una prueba falla; amarillo si la cobertura de un servicio núcleo es < 60 % | `cgUnitTest` |
+| 4 | Pruebas unitarias + JaCoCo | PR y main | Falla si una prueba falla o si la cobertura de líneas de un servicio núcleo es < 60 % (`jacocoTestCoverageVerification`) | `cgUnitTest` |
 | 5 | Build cliente web | PR y main, si cambió `mobile/` | Falla si `expo export` falla | `cgWebCheck` |
 | 6 | SonarQube + quality gate | PR y main | **Bloqueante** (`abortPipeline: true`) | `cgSonar` |
 | 7 | Pruebas de integración | PR y main | Falla si una prueba falla | `cgIntegrationTest` |
@@ -67,7 +67,7 @@ flowchart LR
 
 | Ambiente | Cómo llega una versión |
 |---|---|
-| dev | Automático en cada merge a `main` que genera una versión nueva |
+| dev | Automático en cada build de `main` que genera una versión nueva (el build de `main` se lanza a mano: Nexus no permite republicar una versión) |
 | stage | Automático, si pasan los E2E sobre dev |
 | prod | Solo con aprobación manual en Jenkins |
 
@@ -96,3 +96,5 @@ Cómo decide `cgChangedServices` qué construir:
 **La aprobación no ocupa un ejecutor.** El pipeline no tiene agente global (`agent none`) y la etapa de aprobación no pide agente, así que mientras una persona decide ningún ejecutor queda bloqueado.
 
 **Rollback = redesplegar una versión anterior** con el job [`jenkins/Jenkinsfile.rollback`](../../jenkins/Jenkinsfile.rollback), sin reconstruir nada. Flyway solo avanza: el rollback no revierte el esquema de la base de datos, por eso las migraciones deben ser compatibles hacia atrás (*expand/contract*).
+
+Versión UML (diagrama de actividad): [`uml/pipeline-actividad.png`](uml/pipeline-actividad.png) y [`uml/rollback-actividad.png`](uml/rollback-actividad.png).

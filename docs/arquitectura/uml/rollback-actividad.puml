@@ -1,0 +1,33 @@
+@startuml rollback-actividad
+' Diagrama de actividad UML del job circleguard-rollback.
+' Fuente de verdad: jenkins/Jenkinsfile.rollback.
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName Arial
+title CircleGuard: rollback (diagrama de actividad)
+
+|Operador|
+start
+:Lanzar circleguard-rollback con\nTARGET_ENV, ROLLBACK_VERSION y REASON;
+|Jenkins|
+:Validar: motivo obligatorio y versión\nexistente como tag (imágenes publicadas);
+:Leer la versión desplegada en el ambiente;
+if (¿Ya está en esa versión?) then (sí)
+  :Error: no hay nada que revertir;
+  stop
+endif
+if (¿TARGET_ENV = prod?) then (sí)
+  |Aprobador|
+  if (¿Aprobar el rollback?) then (no)
+    |Jenkins|
+    :Prod no cambia;
+    :Notificar rechazo en Discord;
+    stop
+  endif
+endif
+|Jenkins|
+:SSH al ambiente: compose pull + up --wait\ncon VERSION = ROLLBACK_VERSION;
+:Registrar versión antes y después;
+:Notificar rollback en Discord con el motivo;
+stop
+@enduml

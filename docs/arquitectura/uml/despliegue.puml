@@ -1,0 +1,86 @@
+@startuml despliegue
+' Diagrama de despliegue UML de CircleGuard en Azure (Parte 1), con las
+' interfaces que expone cada nodo (círculo) y las que requiere (semicírculo).
+' Fuente de verdad: infra/azure/provision.sh (NSG), infra/bootstrap/ y deploy/.
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam nodesep 40
+skinparam ranksep 55
+title CircleGuard: diagrama de despliegue (Azure)
+
+cloud "GitHub" as github
+actor "Usuarios" as users
+
+() "Webhook\nHTTP :8080" as IWebhook
+() "Registro Docker\nHTTP :8082" as IRegistry
+() "Notificaciones\n(webhook)" as IDiscord
+
+node "westus2" {
+  node "cg-tools\n<<VM B4s_v2: 4 vCPU, 16 GB>>\n20.230.211.66" as tools {
+    artifact "jenkins" as jenkins
+    artifact "sonarqube 10.7\n+ postgres" as sonar
+    artifact "nexus 3.70" as nexus
+  }
+  node "cg-dev\n<<VM B2s_v2: 2 vCPU, 8 GB>>\n20.114.42.226" as dev {
+    artifact "compose dev\nweb + 8 servicios + middleware\n(imágenes vX.Y.Z)" as appdev
+  }
+}
+
+node "chilecentral" {
+  node "cg-stage\n<<VM B2s_v2: 2 vCPU, 8 GB>>\n57.156.56.122" as stage {
+    artifact "compose stage\n(misma imagen)" as appstage
+  }
+  node "cg-prod\n<<VM B2s_v2: 2 vCPU, 8 GB>>\n57.156.59.208" as prod {
+    artifact "compose prod\n(misma imagen)" as appprod
+  }
+}
+
+node "Discord" as discord
+
+() "SSH :22" as ISshDev
+() "SSH :22 " as ISshStage
+() "SSH :22  " as ISshProd
+() "HTTP :80" as IWebDev
+() "HTTP :80 " as IWebStage
+() "HTTP :80  " as IWebProd
+
+' ---- Interfaces provistas (abiertas en el NSG)
+IWebhook -- jenkins
+IRegistry -- nexus
+IDiscord -- discord
+ISshDev -- dev
+ISshStage -- stage
+ISshProd -- prod
+IWebDev -- appdev
+IWebStage -- appstage
+IWebProd -- appprod
+
+' ---- Interfaces requeridas
+github --( IWebhook
+jenkins --( IRegistry
+jenkins --( ISshDev
+jenkins --( ISshStage
+jenkins --( ISshProd
+jenkins --( IWebDev
+jenkins --( IDiscord
+appdev --( IRegistry
+appstage --( IRegistry
+appprod --( IRegistry
+users --( IWebDev
+users --( IWebStage
+users --( IWebProd
+jenkins ..> sonar : análisis y quality gate
+jenkins ..> github : check, tag y release
+
+note right of tools
+  NSG de cg-tools: :8080 abierto (webhook);
+  :22, :9000 y :8081 solo para el equipo;
+  :8082 solo para las 4 VMs.
+end note
+note right of prod
+  NSG de cada ambiente: :80 abierto;
+  :22 solo desde cg-tools y el equipo.
+  Los backends no publican puertos.
+end note
+@enduml

@@ -35,14 +35,14 @@ flowchart TD
     subgraph Middleware["Capa de Middleware y Persistencia"]
         Postgres[("PostgreSQL 16 :5432<br/>Bases de datos aisladas por servicio")]
         Neo4jDb[("Neo4j 5.26 :7687 / :7474<br/>Grafo de contactos estrechos APOC")]
-        KafkaBroker[["Apache Kafka 7.6 :9092<br/>Bus de eventos asíncronos"]]
+        KafkaBroker[["Apache Kafka 7.6 :9092 + Zookeeper<br/>Bus de eventos asíncronos"]]
         RedisCache[("Redis 7.2 :6379<br/>Caché en memoria user:status")]
         OpenLdap[("OpenLDAP 1.5 :389<br/>Directorio institucional universitario")]
     end
 
     %% Relaciones Clientes -> Perímetro
     WebUser -->|HTTP GET / POST :80| NginxProxy
-    Turnstile -->|HTTP POST /svc/gateway/api/v1/access/validate| NginxProxy
+    Turnstile -->|HTTP POST /svc/gateway/api/v1/gate/validate| NginxProxy
 
     %% Relaciones Nginx -> Backend (Proxy Same-Origin)
     NginxProxy -->|/svc/auth/*| AuthSvc
@@ -50,11 +50,15 @@ flowchart TD
     NginxProxy -->|/svc/gateway/*| GateSvc
     NginxProxy -->|/svc/dashboard/*| DashSvc
     NginxProxy -->|/svc/file/*| FileSvc
+    NginxProxy -->|/svc/identity/*| IdentSvc
+    NginxProxy -->|/svc/promotion/*| PromoSvc
+    NginxProxy -->|/svc/notification/*| NotifSvc
 
     %% Llamadas síncronas entre microservicios
     AuthSvc -->|REST /api/v1/identities/map| IdentSvc
     DashSvc -->|REST /health-status/stats| PromoSvc
     NotifSvc -.->|REST /api/v1/users/contact| AuthSvc
+    NotifSvc -.->|REST| IdentSvc
 
     %% Conexiones con Middleware
     AuthSvc --> Postgres
@@ -66,7 +70,7 @@ flowchart TD
     DashSvc --> Postgres
 
     %% Flujo central de negocio basado en eventos
-    FormSvc ==>|1. survey.submitted| KafkaBroker
+    FormSvc ==>|1. survey.submitted / certificate.validated| KafkaBroker
     KafkaBroker ==>|2. Ingesta asíncrona| PromoSvc
     PromoSvc ==>|3. Actualización de semáforo| RedisCache
     PromoSvc ==>|4. promotion.status.changed / alert.priority| KafkaBroker
@@ -126,7 +130,7 @@ La suscripción académica **Azure for Students** impone un límite estricto de 
 ```mermaid
 flowchart TB
     subgraph InternetZone["Tráfico Externo y Usuarios"]
-        GitHubWebhook["GitHub Actions / Webhooks"]
+        GitHubWebhook["GitHub (webhook)"]
         AdminDevOps["Equipo de Ingeniería<br/>ADMIN_CIDR (SSH / UIs)"]
         EndUsers["Comunidad Universitaria<br/>Navegador / Torniquete"]
     end
@@ -166,11 +170,12 @@ flowchart TB
     EndUsers -->|HTTP TCP 80| DevNginx
     EndUsers -->|HTTP TCP 80| StageNginx
     EndUsers -->|HTTP TCP 80| ProdNginx
+    JenkinsSvc -->|E2E Playwright HTTP 80| DevNginx
 
     %% Despliegues SSH desde Jenkins hacia Ambientes
-    JenkinsSvc ==>|SSH TCP 22 deploy-ssh<br/>docker-compose pull && up -d| VMDev
-    JenkinsSvc ==>|SSH TCP 22 deploy-ssh<br/>docker-compose pull && up -d| VMStage
-    JenkinsSvc ==>|SSH TCP 22 deploy-ssh<br/>docker-compose pull && up -d| VMProd
+    JenkinsSvc ==>|SSH TCP 22 deploy-ssh<br/>docker compose pull && up -d --wait| VMDev
+    JenkinsSvc ==>|SSH TCP 22 deploy-ssh<br/>docker compose pull && up -d --wait| VMStage
+    JenkinsSvc ==>|SSH TCP 22 deploy-ssh<br/>docker compose pull && up -d --wait| VMProd
 
     %% Descarga de Imágenes Docker desde Nexus Registry
     VMDev -.->|docker pull :8082| NexusReg
@@ -215,21 +220,23 @@ flowchart TD
     end
 
     subgraph FaseCD["Fase de Entrega Continua y Promoción (CD en main)"]
-        PRStatus --> SemVer["10. cgVersion<br/>Cálculo SemVer con git-cliff"]
+        PRStatus --> MainBuild["Build de main lanzado a mano<br/>(Nexus ALLOW_ONCE)"]
+        MainBuild --> SemVer["10. cgVersion<br/>Cálculo SemVer con git-cliff"]
         SemVer --> DockerPub["11. cgDockerPublish<br/>docker build & push Nexus :8082<br/>Etiqueta vX.Y.Z (sin latest)"]
         DockerPub --> TagGit["12. cgRelease<br/>Tag git vX.Y.Z y Release Notes"]
-        TagGit --> DeployDev["13. cgDeploy(env: dev)<br/>SSH a cg-dev :20.114.42.226<br/>docker-compose pull && up -d"]
+        TagGit --> DeployDev["13. cgDeploy(env: dev)<br/>SSH a cg-dev :20.114.42.226<br/>docker compose pull && up -d --wait"]
         DeployDev --> E2ETests{"14. cgE2E<br/>Pruebas Playwright sobre DEV"}
-        E2ETests -- "Pasan E2E" --> DeployStage["15. cgDeploy(env: stage)<br/>SSH a cg-stage :57.156.56.122<br/>docker-compose pull && up -d"]
+        E2ETests -- "Pasan E2E" --> DeployStage["15. cgDeploy(env: stage)<br/>SSH a cg-stage :57.156.56.122<br/>docker compose pull && up -d --wait"]
         DeployStage --> ProdGate{"16. Aprobación Manual PROD<br/>input: luis, simon, dario<br/>(timeout: 2 horas)"}
-        ProdGate -- "Aprobado" --> DeployProd["17. cgDeploy(env: prod)<br/>SSH a cg-prod :57.156.59.208<br/>docker-compose pull && up -d"]
+        ProdGate -- "Aprobado" --> DeployProd["17. cgDeploy(env: prod)<br/>SSH a cg-prod :57.156.59.208<br/>docker compose pull && up -d --wait"]
         DeployProd --> SuccessNotif["18. cgNotify<br/>Notificación de Release a Discord"]
     end
 
     subgraph RollbackProc["Procedimiento de Rollback de Emergencia"]
         IncidentAlert["Fallo crítico detectado en PROD"] --> RollbackJob["Disparo de jenkins/Jenkinsfile.rollback"]
         RollbackJob --> SelectVer["Selección de versión anterior estable (ej. v1.0.0)"]
-        SelectVer --> RollbackDeploy["Redespliegue directo vía SSH a cg-prod<br/>VERSION=v1.0.0 docker-compose up -d"]
+        SelectVer --> RollbackAppr{"Aprobación en prod<br/>(motivo obligatorio)"}
+        RollbackAppr --> RollbackDeploy["Redespliegue vía SSH a cg-prod<br/>VERSION=v1.0.0 docker compose up -d --wait"]
         RollbackDeploy --> RollbackNotif["Notificación de rollback completado en Discord"]
     end
 
@@ -270,3 +277,21 @@ flowchart TD
    - El operador especifica la versión previa conocida y estable (p. ej. `v1.0.0`).
    - El job no compila ni genera imágenes nuevas: se conecta vía SSH a `cg-prod` y actualiza la variable `VERSION` en el archivo de entorno, ejecutando `docker-compose pull && docker-compose up -d`.
    - El sistema retorna a un estado operativo normal en menos de 60 segundos, cumpliendo la política de alta disponibilidad del campus.
+
+---
+
+## 4. Diagramas UML
+
+Los mismos modelos en UML (PlantUML), con su fuente en `docs/arquitectura/uml/`. Para regenerarlos: `java -jar plantuml.jar -tpng docs/arquitectura/uml/*.puml` (requiere Graphviz).
+
+| Diagrama | Tipo UML | Imagen | Fuente |
+|---|---|---|---|
+| Aplicación | Componentes | [componentes.png](uml/componentes.png) | [componentes.puml](uml/componentes.puml) |
+| Infraestructura en Azure | Despliegue | [despliegue.png](uml/despliegue.png) | [despliegue.puml](uml/despliegue.puml) |
+| Pipeline CI/CD | Actividad | [pipeline-actividad.png](uml/pipeline-actividad.png) | [pipeline-actividad.puml](uml/pipeline-actividad.puml) |
+| Rollback | Actividad | [rollback-actividad.png](uml/rollback-actividad.png) | [rollback-actividad.puml](uml/rollback-actividad.puml) |
+
+![Diagrama de componentes](uml/componentes.png)
+
+![Diagrama de despliegue](uml/despliegue.png)
+

@@ -1,0 +1,62 @@
+@startuml pipeline-actividad
+' Diagrama de actividad UML del pipeline CI/CD de CircleGuard.
+' Fuente de verdad: Jenkinsfile, jenkins/vars/ y jenkins/Jenkinsfile.rollback.
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName Arial
+title CircleGuard: pipeline CI/CD (diagrama de actividad)
+
+|Desarrollador|
+start
+:Push a rama <tipo>/CG-<n> y PR a main;
+|Jenkins|
+:Checkout (merge del PR con main);
+:Detectar servicios cambiados;
+if (¿Hay servicios cambiados?) then (sí)
+  :Compilar con Gradle;
+  :Pruebas unitarias + JaCoCo\n(núcleo >= 60 % de líneas);
+  :Análisis SonarQube;
+  if (¿Quality gate OK?) then (no)
+    :Notificar fallo en Discord;
+    stop
+  endif
+  :Pruebas de integración\n(Testcontainers);
+else (no, solo docs)
+endif
+:Reportar el check en el PR;
+|Revisor|
+:Revisar y aprobar el PR;
+:Squash merge a main;
+|Jenkins|
+:Build de main (lanzado a mano);
+note right: Nexus es ALLOW_ONCE:\nuna versión no se republica
+:Repetir las etapas de CI;
+:Calcular versión con git-cliff;
+if (¿Hay commits feat, fix o "!"?) then (no)
+  :Termina sin release;
+  stop
+endif
+:Publicar 9 imágenes vX.Y.Z en Nexus;
+:Crear tag y GitHub Release;
+:Desplegar en dev (SSH + compose up --wait);
+:Pruebas E2E Playwright sobre dev;
+if (¿E2E OK?) then (no)
+  :Stage y prod no cambian;
+  :Notificar fallo en Discord;
+  stop
+endif
+:Desplegar en stage;
+|Aprobador|
+if (¿Aprobar despliegue en prod?\n(luis, simon o dario; 2 h)) then (sí)
+  |Jenkins|
+  :Desplegar en prod;
+  :Notificar release en Discord;
+  stop
+else (no / timeout)
+  |Jenkins|
+  :Prod no cambia;
+  :Notificar rechazo en Discord;
+  stop
+endif
+
+@enduml
