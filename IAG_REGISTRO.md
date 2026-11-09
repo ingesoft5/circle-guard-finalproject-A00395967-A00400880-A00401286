@@ -171,3 +171,43 @@ El quality gate, la publicación en Nexus, los despliegues, los E2E y las notifi
 - **Error de coordinación de la IA**: subió un commit a la rama del #28 cuando Luis ya lo había fusionado. Se restauró la descripción del #28 y el cambio salió en un PR nuevo (#31).
 
 **Lección:** un gate que nunca falla hay que probarlo con código malo a propósito, y una herramienta de calidad hay que verificarla con sus propios datos (qué archivos analizó, cuántas líneas), no solo con el resultado OK. Además, la IA también se equivoca al probar: cada conclusión se confirmó con una prueba limpia antes de cambiar el servidor.
+
+---
+
+## Luis Cadena: gestión ágil, empaquetamiento y change management
+
+*Transcrito de la bitácora de trabajo de Luis (Parte 1, 8 de noviembre de 2026).*
+
+**Herramientas:** Orca con Claude Code (Opus para las tareas difíciles, Sonnet para las repetitivas) y Antigravity CLI para la documentación, coordinados desde un chat con Claude como orquestador. Sesiones del 4 al 8 de noviembre de 2026.
+
+### Contenido propio entregado a la IA
+- El enunciado del proyecto y la división del trabajo del equipo.
+- El repositorio y, para cada agente, una lista cerrada de archivos que podía tocar.
+- Las convenciones del equipo: ramas `<tipo>/CG-<n>-...`, Conventional Commits en inglés y documentación en español.
+
+### Prompts empleados (resumen)
+1. Generar el backlog (66 ítems en 8 épicas, con criterios de aceptación) y una guía por integrante.
+2. Un agente por tarea, en su propio worktree: Actuator (A), Dockerfiles (B), imagen web (C), documentación (D), compose por ambiente (E), correcciones (F), auditoría del repositorio (G) y documentación ágil (H).
+3. Revisar con el orquestador el reporte de cada agente y explicar cada paso para la sustentación.
+
+**Reglas de cada prompt:** un worktree por agente, lista cerrada de archivos, sin secretos, nunca `latest`, verificación obligatoria y un reporte con formato fijo.
+
+### Qué produjo la IA
+
+| Entregable | PR |
+|---|---|
+| Actuator en los 8 servicios | #7 |
+| Dockerfiles multi-stage sin root | #8 |
+| Imagen web con nginx como proxy | #9 |
+| Compose por ambiente | #23 |
+| Fix de auth (URL de identity y QR de 5 minutos) | #24 |
+| Registros de sprints, plantilla de PR y diagramas | #25 |
+
+### Revisión crítica
+- **Ningún agente hizo commit:** Luis revisó cada diff con el orquestador e hizo el commit a su nombre, sin `Co-Authored-By`.
+- **Dos agentes trabajaron fuera de su worktree** y mezclaron su trabajo con otra rama; hubo que separarlo a mano con `git stash` en los PRs #7 y #8.
+- **Los agentes reportaban que faltaba el wrapper de Gradle** porque su rama se creó antes del PR #3; se rehicieron las ramas desde `main` actualizado.
+- **Varios errores solo aparecieron al desplegar:** el cliente web llamaba a `localhost`, `IdentityClient` tenía la URL fija y el QR vencía en 300 ms.
+- **La revisión humana atrapó problemas reales**, como el choque entre #24 y #17.
+
+**Lección:** la IA acelera mucho cuando cada agente tiene un alcance cerrado y se verifica; sin esa disciplina, el trabajo se mezcla y hay que separarlo a mano.

@@ -104,3 +104,41 @@ Al cierre del Sprint 0 (5 de noviembre de 2026), el equipo completó satisfactor
 5. **Plantilla de Pull Request operativa:** Publicación de `.github/pull_request_template.md` con selección de tipo de cambio, clave de Jira, recordatorio de Conventional Commits y checklist de seguridad.
 6. **Integraciones de comunicación listas:** Servidor de Discord configurado con canal `#circleguard-ci` y webhook vinculado para alertas tempranas del pipeline.
 7. **Acuerdos técnicos consolidados:** Formalización del DoR y DoD como criterio vinculante para aceptar cualquier PR durante el Sprint 1.
+
+---
+
+## 7. Sprint Review del Sprint 0
+
+| Objetivo del Sprint 0 | Resultado | Evidencia |
+|---|---|---|
+| Conformar el equipo y repartir el trabajo | Cumplido: una persona responsable por épica (sección 5) | Jira, épicas E1.1 a E1.8 |
+| Definir el marco ágil y la estrategia de branching | Cumplido: Scrum adaptado y GitHub Flow | Sección 2 y `docs/agil/branching.md` |
+| Backlog inicial con historias y criterios de aceptación | Cumplido: 66 ítems en 8 épicas, creados en Jira con el conector de Atlassian | Proyecto `CG` en Jira |
+| Cargar el código base | Cumplido: repositorio privado creado desde la plantilla del curso, sin copiar sus ramas | Repositorio en `ingesoft5` |
+| Proteger `main` | Cumplido después de mover el repositorio a la organización (ver retrospectiva) | Ruleset "Proteger main" |
+| Aprovisionar la nube | **No cumplido en el Sprint 0:** se agotó el crédito de Azure for Students; pasó al Sprint 1 con otra suscripción | `docs/infra/topologia.md` |
+
+Además, cada integrante recibió una guía con sus tareas y lo que debe saber para la sustentación.
+
+---
+
+## 8. Retrospectiva del Sprint 0
+
+### 8.1 Qué funcionó bien
+- **Reparto claro desde el inicio:** cada épica tuvo un responsable y cada integrante sabía qué entregaba, lo que permitió trabajar en paralelo desde el Sprint 1.
+- **Backlog completo en poco tiempo:** generar las historias con sus criterios de aceptación y cargarlas a Jira con el conector evitó crear 66 ítems a mano.
+- **Convenciones acordadas antes de escribir código:** nombres de rama, Conventional Commits y squash merge quedaron definidos antes del primer PR.
+
+### 8.2 Qué no funcionó bien
+- **El ruleset de `main` no se aplicaba:** en un repositorio privado de una cuenta personal GitHub no aplica los rulesets. Se resolvió moviendo el repositorio a la organización `ingesoft5`.
+- **Jira no aceptaba story points:** el campo no estaba en las pantallas de Historia y Tarea; las historias se crearon sin estimación numérica.
+- **Los primeros commits estaban en español** porque no había una regla de idioma.
+- **La nube no quedó lista:** el crédito de Azure for Students se agotó y el aprovisionamiento se retrasó al Sprint 1.
+- **Historias difíciles de encontrar:** el tablero oculta lo terminado, y un integrante no encontraba sus historias.
+
+### 8.3 Acciones de mejora
+1. Commits, ramas y títulos de PR en inglés; documentación en español (aplicado desde el Sprint 1).
+2. Asegurar los recursos de nube antes de empezar el sprint que los necesita.
+3. Agregar el campo de story points a las pantallas de Jira.
+4. Revisar la visibilidad del repositorio después de cualquier cambio de organización: debe quedar privado.
+
