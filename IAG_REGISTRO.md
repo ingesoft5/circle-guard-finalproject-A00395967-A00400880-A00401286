@@ -104,3 +104,70 @@ El quality gate, la publicación en Nexus, los despliegues, los E2E y las notifi
 - **Jenkins borraba los builds de los PRs cerrados.** Se configuró para conservarlos 7 días y no perder evidencias.
 
 **Lección:** el código del pipeline (sugerido o propio) tiene que probarse en el ambiente real; varios errores solo aparecieron al ejecutar en el servidor. Probar cada corrección antes de subirla (por ejemplo, los E2E contra dev) evitó gastar releases.
+
+---
+
+## Darío Marquínez: infraestructura y calidad (QA)
+
+**Herramienta:** Claude Code (modelo Claude Opus 5.5), sesiones del 7 y 8 de noviembre de 2026.
+
+### Sesión 1 (7 de noviembre de 2026): pruebas e infraestructura en Azure
+
+**Contenido propio entregado a la IA:**
+- El enunciado (`Proyecto_Final_CircleGuard.pdf`) y mi guía de rol con los work items de Jira (CG-30 a CG-42, CG-45 a CG-47, CG-62).
+- El repositorio del equipo y las preguntas de Simón sobre servidores, registro y credenciales.
+- Acceso de lectura y creación a la suscripción Azure for Students de Luis (sesión de `az` iniciada por nosotros). Las contraseñas nunca pasaron por el chat: la IA solo leía archivos `chmod 600` en los servidores cuando un script las necesitaba.
+
+**Prompts empleados (resumen):**
+1. Revisar qué pruebas fallaban en `main` y por qué, y corregirlas sin cambiar el comportamiento de los servicios.
+2. Subir la cobertura de los 5 servicios núcleo por encima del 60 % e imponerla en el build.
+3. Escribir pruebas de integración entre servicios reales (CG-41, CG-42) y E2E de los flujos principales (CG-45 a CG-47).
+4. Proponer y crear la infraestructura en la nube con scripts Bash idempotentes (CG-30 a CG-34), y confirmar conmigo antes de gastar crédito.
+5. Revisar y comentar los PRs de Luis y Simón.
+
+**Qué produjo la IA:**
+
+| Entregable | Resultado | PR |
+|---|---|---|
+| Corrección de pruebas unitarias rotas | identity ×4, promotion ×5, form ×1 | #12 |
+| Cobertura (CG-35 a CG-40) | ~200 pruebas; auth 98,1 %, identity 94,1 %, promotion 81,4 %, form 97,7 %, gateway 88,9 %; regla de 60 % en `check` | #15 |
+| E2E con Playwright (CG-45 a CG-47) | login, cuestionario de salud y acceso al campus con el QR real | #13 |
+| Integración (CG-41, CG-42) | form → Kafka → promotion (4) y auth → identity (3) con Kafka, Neo4j, Redis y PostgreSQL reales | #17 |
+| Bugs encontrados por esas pruebas | promotion no publicaba eventos; los usuarios sin contactos nunca llegaban a Redis | #16 |
+| Infraestructura (CG-30 a CG-34) | `provision.sh`, `bootstrap-all.sh`, `bootstrap-tools.sh`, `bootstrap-env.sh`, configuración de Nexus y SonarQube por API, topología y costos | #22 |
+
+**Revisión crítica y correcciones:**
+- **Testcontainers no arrancaba.** Docker Engine 29 rechaza la API 1.32 que usa Testcontainers 1.19 (respondía 400). Se fijó `api.version=1.44` en la tarea `integrationTest`.
+- **Las pruebas de integración encontraron dos bugs reales en promotion**: no había configuración de productor de Kafka (los eventos fallaban al serializarse) y la consulta Cypher descartaba su única fila cuando el usuario no tenía contactos. Se corrigieron en el PR #16, separado de las pruebas.
+- **Azure respondía `SkuNotAvailable` aunque había cuota.** En vez de probar tamaños a ciegas, la IA escribió `probe-capacity.sh`, que valida una plantilla ARM **sin crear nada**. Solo la familia Bsv2 tenía capacidad, así que se usó Bsv2 y dos regiones (westus2 y chilecentral). Revisé y aprobé el costo (≈ USD 0,46/h) antes de crear las VMs.
+- **Registro por HTTP entre regiones.** La IA lo propuso como trade-off explícito y lo acotamos con NSG (solo las 4 VMs llegan al puerto 8082), usuarios de mínimo privilegio en Nexus y `ALLOW_ONCE`. Las tres cosas se probaron (push permitido, sobrescritura rechazada, pull de solo lectura).
+- **SonarQube 10 crea los gates nuevos con condiciones propias** y la creación de la condición de cobertura devolvía 400. El script se cambió para *converger* el gate a exactamente nuestras condiciones.
+- **Errores de la IA en los scripts**: usó `declare -A` y arreglos vacíos con `set -u`, que fallan en el bash 3.2 de macOS, y un bucle que zsh no separaba por espacios. Se detectaron al ejecutar y se corrigieron.
+- **Idempotencia probada, no supuesta**: cada script se ejecutó dos veces; la segunda termina con código 0 y sin cambios (`docs/infra/evidencia/`).
+
+### Sesión 2 (8 de noviembre de 2026): quality gate y release
+
+**Contenido propio entregado a la IA:** los mensajes del grupo (auditoría de Luis, preguntas de Simón sobre el gate del PR #26) y acceso a SonarQube y Jenkins en cg-tools.
+
+**Prompts empleados (resumen):**
+1. Averiguar por qué el gate de SonarQube daba OK en el PR #26, que tenía código malo a propósito.
+2. Revisar los puntos que Luis me asignó (verificación silenciosa en `bootstrap-env.sh`, selector E2E).
+3. Desbloquear el build de `main` para sacar la v1.0.0.
+
+**Qué produjo la IA:**
+
+| Tema | Resultado | PR |
+|---|---|---|
+| Sonar analizaba 0 líneas de Java | Omitir `:services` omitía a todos sus hijos; además el gate pasó a evaluar código nuevo (últimos 30 días) | #29 |
+| `main` no compilaba tras #24 + #17 | La prueba de integración usaba el constructor viejo de `IdentityClient` | #28 |
+| Benchmark NFR-1 inestable en Jenkins | Pasó a su propia tarea `performanceTest` | #31 |
+| Verificación silenciosa en `bootstrap-env.sh` | `cmd && ok` no dispara `set -e`; ahora termina en `die` | #30 |
+
+**Revisión crítica y correcciones:**
+- **Primero se midió y después se cambió el gate.** Antes de tocar el gate real, la IA analizó los 8 servicios en proyectos de prueba (`probe-*`, borrados después). Así encontramos 2 bloqueantes heredados en promotion (`java:S2229`): un gate sobre todo el código habría frenado `main`. La propuesta de "30 días + condiciones sobre todo el código" se descartó con esos datos.
+- **La IA se equivocó al probar el código nuevo.** Las dos primeras simulaciones daban OK para el PR #26 porque los issues ya existían de un análisis anterior y Sonar conserva su fecha de creación. Se repitió con un proyecto limpio en el orden correcto (línea base → PR con fechas nuevas): **ERROR** con cobertura nueva 0 %, 3 bloqueantes y 1 vulnerabilidad. De ahí salió la instrucción para Simón (`git rebase --ignore-date`).
+- **El choque entre #24 y #17 apareció al simular el merge de todos los PRs abiertos** y compilar el resultado. Por separado, cada PR estaba bien.
+- **Una aserción de tiempo no puede bloquear el pipeline**: el benchmark tardaba 436 ms en local y más de 1 s en la VM compartida de Jenkins.
+- **Error de coordinación de la IA**: subió un commit a la rama del #28 cuando Luis ya lo había fusionado. Se restauró la descripción del #28 y el cambio salió en un PR nuevo (#31).
+
+**Lección:** un gate que nunca falla hay que probarlo con código malo a propósito, y una herramienta de calidad hay que verificarla con sus propios datos (qué archivos analizó, cuántas líneas), no solo con el resultado OK. Además, la IA también se equivoca al probar: cada conclusión se confirmó con una prueba limpia antes de cambiar el servidor.
