@@ -58,6 +58,42 @@ for e in dev stage prod; do ./deploy/helm/create-secrets.sh $e; done          # 
 Costo aproximado: ~USD 10–11 por día (las dos VMs suman ~95 %). Apagar sin borrar:
 `az vm deallocate --ids $(az vm list -g circleguard-rg --query "[].id" -o tsv)`.
 
+### Kubeconfig de administrador
+
+El clúster lo genera en `/etc/rancher/k3s/k3s.yaml` (modo 600, con `tls-san`
+para la IP pública). Se baja por SSH con la llave del administrador, que es la
+única que la VM acepta, y se cambia `127.0.0.1` por la IP pública:
+
+```bash
+terraform -chdir=infra/terraform/envs/shared init && terraform -chdir=infra/terraform/envs/shared output -raw kubeconfig_command
+# hoy: ssh <admin>@40.64.120.3 sudo cat /etc/rancher/k3s/k3s.yaml | sed 's/127.0.0.1/40.64.120.3/' > ~/.kube/circleguard.yaml
+chmod 600 ~/.kube/circleguard.yaml
+KUBECONFIG=~/.kube/circleguard.yaml kubectl get nodes
+```
+
+La API (6443) solo responde a las IP del NSG: la de tools y la de `admin_cidr`
+en `terraform.tfvars`. Este kubeconfig es de administrador: no se sube al repo
+ni se comparte. Jenkins usa otro, de una ServiceAccount con permisos solo en
+los 3 namespaces (`infra/k8s/jenkins-access.sh`).
+
+### Destruir la infraestructura (solo después de la sustentación)
+
+Primero los ambientes y al final `shared`, en orden inverso a la creación:
+
+```bash
+for e in prod stage dev; do terraform -chdir=infra/terraform/envs/$e destroy; done   # Key Vault y respaldos
+terraform -chdir=infra/terraform/envs/shared destroy                                 # clúster, tools, red y alertas
+```
+
+- Antes, si se quieren conservar, exporta los dashboards de Grafana y los
+  reportes de Jenkins: los discos de las VMs se borran con `shared`.
+- Los Key Vault quedan en borrado suave (`soft_delete_days`). Para recrearlos
+  con el mismo nombre: `az keyvault list-deleted` y `az keyvault purge -n <nombre>`.
+- El estado (`cg-tfstate-rg`) no lo toca ningún `destroy`. Bórralo al final,
+  cuando ya no se vaya a usar: `az group delete -n cg-tfstate-rg`.
+- Verifica que no quede nada con costo:
+  `az resource list --tag project=circleguard -o table` debe salir vacío.
+
 ## Estado remoto (CG-79)
 
 El estado de cada ambiente vive en Azure Storage, nunca en el repo:

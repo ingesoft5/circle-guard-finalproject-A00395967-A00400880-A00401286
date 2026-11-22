@@ -9,14 +9,14 @@ vuelta de red; el tiempo de servidor es la diferencia.
 | Corrida | Usuarios | Duración | Peticiones | p95 | Errores | Objetivo |
 |---|---|---|---|---|---|---|
 | Normal | 30 | 3 min | 3.424 (19 req/s) | **160 ms** | **0 %** | ✅ p95 < 500 ms, errores < 1 % |
-| Estrés | 200 | 5 min | 31.033 (104 req/s) | **160 ms** | **0,55 %** | ✅ errores < 5 %; el HPA escaló |
+| Estrés | 200 | 5 min | 31.105 (104 req/s) | **160 ms** | **0,55 %** | ✅ errores < 5 %; el HPA escaló |
 
 ## Por endpoint
 
 | Endpoint | Normal: p50 / p95 / p99 | Estrés: p50 / p95 / p99 | Errores en estrés |
 |---|---|---|---|
-| `gateway: gate/validate` (portería) | 130 / 160 / 160 ms | 130 / 150 / 170 ms | 0 de 24.143 |
-| `form: surveys` (cuestionario) | 140 / 160 / 430 ms | 140 / 160 / 280 ms | 0 de 5.693 |
+| `gateway: gate/validate` (portería) | 130 / 160 / 160 ms | 130 / 150 / 170 ms | 0 de 24.199 |
+| `form: surveys` (cuestionario) | 140 / 160 / 430 ms | 140 / 160 / 280 ms | 0 de 5.708 |
 | `auth: qr/generate` | 140 / 300 / 460 ms | 140 / 60 s / 60 s | 55 (504) |
 | `auth: login` | 8,8 / 10 / 11 s | 29 / 60 / 60 s | 116 de 316 (59 × 401, 57 × 504) |
 
@@ -56,5 +56,9 @@ Con 2 réplicas, la portería mantuvo p95 = 150 ms a 81 req/s, sin errores.
 ## Archivos
 
 - `normal_*.csv`, `normal.html`, `stress_*.csv`, `stress.html`: exportes de Locust.
+  Las cifras de esta página son las del cierre de la corrida (`stress.html` y
+  `stress-console.txt`: 31.105 peticiones). `stress_stats.csv` dice 31.033 porque
+  Locust lo escribe unos segundos antes de detenerse; los errores (171) y los
+  percentiles son los mismos.
 - `stress-hpa.txt`: estado del HPA cada 15 s durante el estrés.
 - `stress-console.txt`: salida completa de la corrida.
