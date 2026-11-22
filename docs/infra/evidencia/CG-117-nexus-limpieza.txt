@@ -1,0 +1,31 @@
+# CG-117 · Limpieza de SNAPSHOT en Nexus (2026-11-21 21:26 America/Bogota)
+# nexus-setup.sh ejecutado dos veces en cg-tools: la segunda solo informa 'ya existe'.
+
+  "name" : "circleguard-snapshots",
+  "criteriaLastBlobUpdated" : 7,
+  "criteriaAssetRegex" : "/?v2/circleguard/[^/]+/manifests/v[0-9]+\\.[0-9]+\\.[0-9]+-SNAPSHOT\\.[0-9]+",
+    "name" : "CircleGuard - Compactar blob store",
+    "nextRun" : "2026-11-22T03:00:00.000+00:00",
+    "name" : "Cleanup service",
+    "nextRun" : "2026-11-23T01:00:00.000+00:00",
+    "name" : "CircleGuard - Docker GC",
+    "nextRun" : "2026-11-23T02:00:00.000+00:00",
+[02:25:56] Esperando a que Nexus responda
+[02:25:56] ✓ Realms activos: NexusAuthenticatingRealm, DockerToken
+[02:25:56] ✓ Acceso anónimo desactivado
+[02:25:57] ✓ Repo Docker 'circleguard' ya existe
+[02:25:57] ✓ Rol cg-docker-push ya existe
+[02:25:57] ✓ Rol cg-docker-pull ya existe
+[02:25:57] ✓ Usuario jenkins-ci ya existe
+[02:25:57] ✓ Usuario deploy-pull ya existe
+[02:25:57] ✓ Política de limpieza circleguard-snapshots ya existe (7 días)
+[02:25:57] ✓ Repo 'circleguard' ya usa la política circleguard-snapshots
+[02:25:57] ✓ Tarea 'CircleGuard - Docker GC' ya existe
+[02:25:57] ✓ Tarea 'CircleGuard - Compactar blob store' ya existe
+[02:25:57] ✓ Nexus listo: registro Docker en :8082 (repo circleguard)
+
+# Qué borra la expresión (prueba con grep -E, mismas reglas que Nexus: coincidencia completa)
+v2/circleguard/auth-service/manifests/v1.0.2-SNAPSHOT.17     se borra a los 7 días
+/v2/circleguard/web/manifests/v1.0.2-SNAPSHOT.0              se borra a los 7 días
+v2/circleguard/auth-service/manifests/v1.0.2                 se conserva
+v2/circleguard/auth-service/manifests/latest                 se conserva
