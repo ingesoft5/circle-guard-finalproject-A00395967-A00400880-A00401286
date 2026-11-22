@@ -132,6 +132,13 @@ pipeline {
                     steps { script { cgE2E(cgConfig.webUrl('dev')) } }
                 }
 
+                // CG-92: escaneo pasivo de seguridad del web en dev. Una alerta FAIL
+                // (tests/security-zap/zap-baseline.conf) frena la promoción.
+                stage('OWASP ZAP sobre DEV') {
+                    when { expression { isRelease() } }
+                    steps { script { cgZap(cgConfig.webUrl('dev')) } }
+                }
+
                 stage('Deploy STAGE') {
                     when { expression { isRelease() } }
                     // Misma imagen y misma SNAPSHOT que en dev (build once, deploy many).

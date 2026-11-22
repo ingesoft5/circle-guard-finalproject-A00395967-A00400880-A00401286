@@ -25,6 +25,7 @@
 | `cgRelease` | Tag `vX.Y.Z` + release notes + GitHub Release (después de promover) | CG-59 |
 | `cgDeploy` | `helm upgrade --install --atomic --wait` en el namespace del ambiente (o SSH + compose) | CG-56/57, CG-91 |
 | `cgE2E` | Playwright contra un ambiente + reportes | CG-57 |
+| `cgZap` | OWASP ZAP baseline contra el web de dev; reglas FAIL/WARN en `tests/security-zap/` | CG-92 |
 | `cgNotify` | Mensaje a Discord | CG-60 |
 
 ## Configuración de Jenkins (una sola vez)
