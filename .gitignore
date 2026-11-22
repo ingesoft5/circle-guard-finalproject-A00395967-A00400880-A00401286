@@ -63,3 +63,26 @@ mobile/.expo/
 .env
 **/.env
 !**/.env.example
+
+# Terraform (CG-79): el estado vive en Azure Storage, nunca en el repo
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+crash.log
+crash.*.log
+*.tfvars
+!*.tfvars.example
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+# El lock de providers SÍ va en el repo (versiones reproducibles)
+!.terraform.lock.hcl
+
+# Kubernetes: el kubeconfig nunca va al repo
+kubeconfig*
+*.kubeconfig
