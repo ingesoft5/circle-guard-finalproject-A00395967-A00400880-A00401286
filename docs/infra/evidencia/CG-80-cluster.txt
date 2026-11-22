@@ -1,0 +1,25 @@
+# CG-80 · Evidencia del clúster k3s (2026-11-21 21:17 America/Bogota)
+$ kubectl get nodes -o wide
+NAME     STATUS   ROLES           AGE     VERSION         INTERNAL-IP   EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION     CONTAINER-RUNTIME
+cg-k3s   Ready    control-plane   4m44s   v1.35.10+k3s1   10.20.1.4     <none>        Ubuntu 22.04.5 LTS   6.8.0-1073-azure   containerd://2.2.10-k3s1
+
+$ kubectl get ns -L circleguard.io/env,pod-security.kubernetes.io/enforce
+NAME                STATUS   AGE     ENV             ENFORCE
+circleguard-dev     Active   4m41s   dev             baseline
+circleguard-prod    Active   4m41s   prod            baseline
+circleguard-stage   Active   4m41s   stage           baseline
+default             Active   4m46s                   
+kube-node-lease     Active   4m46s                   
+kube-public         Active   4m46s                   
+kube-system         Active   4m46s                   
+observability       Active   4m41s   observability   
+
+$ kubectl get pods -n kube-system
+NAME                                      READY   STATUS      RESTARTS   AGE
+coredns-b644fd95b-6c55r                   1/1     Running     0          4m40s
+helm-install-traefik-4w85g                0/1     Completed   1          4m40s
+helm-install-traefik-crd-fprlq            0/1     Completed   0          4m40s
+local-path-provisioner-68868f474b-j8kq5   1/1     Running     0          4m40s
+metrics-server-7f4b6d9bd7-j4c6r           1/1     Running     0          4m40s
+svclb-traefik-17d89522-wfd92              2/2     Running     0          4m23s
+traefik-6f6cdfbb88-c6f7s                  1/1     Running     0          4m23s
