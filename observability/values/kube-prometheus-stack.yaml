@@ -1,0 +1,82 @@
+# kube-prometheus-stack (CG-93, CG-94, CG-95): Prometheus, Alertmanager y Grafana.
+# Lo instala observability/install.sh en el namespace "observability".
+
+prometheus:
+  prometheusSpec:
+    # Descubre los PodMonitor y PrometheusRule de cualquier namespace, no solo
+    # los creados por este chart (los de CircleGuard están en observability/k8s).
+    podMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    retention: 7d
+    resources:
+      requests: {cpu: 100m, memory: 512Mi}
+      limits: {memory: 1Gi}
+
+alertmanager:
+  alertmanagerSpec:
+    # Secret con la URL del webhook de Discord (lo crea install.sh desde la
+    # variable DISCORD_WEBHOOK_URL; nunca está en el repo). Se monta en
+    # /etc/alertmanager/secrets/alertmanager-discord/url.
+    secrets: [alertmanager-discord]
+  config:
+    # Solo las alertas de CircleGuard (k8s/alerts.yaml) van a Discord. Las que
+    # trae el chart por defecto (Kube*, TargetDown...) quedan visibles en
+    # Alertmanager y Grafana, pero no llenan el canal del equipo.
+    route:
+      receiver: "null"
+      group_by: [alertname, namespace, service, application]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 2h
+      routes:
+        - matchers: ['alertname=~"CircleGuard.*"']
+          receiver: discord
+    receivers:
+      - name: "null"
+      - name: discord
+        discord_configs:
+          - webhook_url_file: /etc/alertmanager/secrets/alertmanager-discord/url
+            send_resolved: true
+            title: '{{ if eq .Status "firing" }}🔥{{ else }}✅{{ end }} CircleGuard: {{ .CommonLabels.alertname }}'
+            message: |-
+              {{ range .Alerts }}**{{ .Annotations.summary }}**
+              {{ .Annotations.description }}
+              {{ end }}
+
+grafana:
+  adminUser: admin
+  # La contraseña la genera el chart y queda en el Secret kube-prometheus-stack-grafana.
+  sidecar:
+    dashboards:
+      enabled: true
+      # Los ConfigMaps con esta etiqueta se cargan como dashboards (install.sh
+      # los crea desde observability/dashboards/*.json).
+      label: grafana_dashboard
+      labelValue: "1"
+      searchNamespace: ALL
+      folderAnnotation: grafana_folder
+      provider:
+        foldersFromFilesStructure: true
+  additionalDataSources:
+    - name: Loki
+      uid: loki
+      type: loki
+      url: http://loki-gateway.observability
+      jsonData:
+        # Spring Boot escribe [traceId-spanId] en cada línea: enlace directo a Jaeger.
+        derivedFields:
+          - name: traceId
+            matcherRegex: '\[([0-9a-f]{32})-[0-9a-f]{16}\]'
+            url: '$${__value.raw}'
+            datasourceUid: jaeger
+    - name: Jaeger
+      uid: jaeger
+      type: jaeger
+      url: http://jaeger.observability:16686
+
+# k3s no expone estos componentes del plano de control como pods.
+kubeEtcd: {enabled: false}
+kubeControllerManager: {enabled: false}
+kubeScheduler: {enabled: false}
+kubeProxy: {enabled: false}

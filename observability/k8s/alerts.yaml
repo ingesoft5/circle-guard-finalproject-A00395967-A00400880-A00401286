@@ -1,0 +1,66 @@
+# Tres alertas críticas de CircleGuard (CG-95). Alertmanager las envía a Discord.
+# Cómo dispararlas a propósito: observability/README.md, sección "Probar las alertas".
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: circleguard-critical
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: circleguard
+spec:
+  groups:
+    - name: circleguard.critical
+      rules:
+        # 1. Un servicio dejó de responder a Prometheus durante 1 minuto.
+        - alert: CircleGuardServiceDown
+          expr: up{job=~".*circleguard-services.*"} == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $labels.service }} caído en {{ $labels.namespace }}"
+            description: "Prometheus no puede leer /actuator/prometheus de {{ $labels.pod }} desde hace más de 1 minuto."
+
+        # 1b. El Deployment no tiene ninguna réplica disponible (escalado a 0,
+        #     pods en CrashLoop o sin pasar la readiness). En ese caso 'up' ni
+        #     siquiera aparece, por eso se mira kube-state-metrics.
+        - alert: CircleGuardServiceDown
+          expr: |
+            label_replace(
+              kube_deployment_status_replicas_available{namespace=~"circleguard-.*", deployment=~".*-service"},
+              "service", "$1", "deployment", "(.*)"
+            ) == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $labels.service }} sin réplicas disponibles en {{ $labels.namespace }}"
+            description: "El Deployment {{ $labels.deployment }} lleva más de 1 minuto sin ningún pod listo."
+
+        # 2. Más del 5 % de las peticiones HTTP terminan en 5xx durante 5 minutos.
+        - alert: CircleGuardHighErrorRate
+          expr: |
+            (
+              sum by (namespace, application) (rate(http_server_requests_seconds_count{status=~"5.."}[5m]))
+              /
+              sum by (namespace, application) (rate(http_server_requests_seconds_count[5m]))
+            ) > 0.05
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Errores 5xx altos en {{ $labels.application }} ({{ $labels.namespace }})"
+            description: "{{ $value | humanizePercentage }} de las peticiones fallan con 5xx (umbral 5 %)."
+
+        # 3. El p95 de latencia HTTP supera 1 s durante 5 minutos.
+        - alert: CircleGuardHighLatencyP95
+          expr: |
+            histogram_quantile(0.95,
+              sum by (namespace, application, le) (rate(http_server_requests_seconds_bucket{uri!~"/actuator.*"}[5m]))
+            ) > 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Latencia p95 alta en {{ $labels.application }} ({{ $labels.namespace }})"
+            description: "El 95 % de las peticiones tarda hasta {{ $value | humanizeDuration }} (umbral 1 s)."
