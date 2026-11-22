@@ -33,6 +33,23 @@ circleguard:
 server:
   port: 8180
 
+# Retry hacia identity-service (CG-99): hasta 3 intentos con espera exponencial
+# (200 ms y luego 400 ms). Solo fallos transitorios; un 4xx o un 500 no se
+# reintentan porque repetirlos daría el mismo resultado.
+resilience4j:
+  retry:
+    instances:
+      identity:
+        max-attempts: 3
+        wait-duration: 200ms
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - org.springframework.web.client.ResourceAccessException
+          - org.springframework.web.client.HttpServerErrorException$BadGateway
+          - org.springframework.web.client.HttpServerErrorException$ServiceUnavailable
+          - org.springframework.web.client.HttpServerErrorException$GatewayTimeout
+
 management:
   endpoints:
     web:
