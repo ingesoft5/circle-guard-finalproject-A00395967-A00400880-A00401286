@@ -132,6 +132,9 @@ String webUrl(String envName) {
     return url ?: "http://${host(envName)}:${webPort()}"
 }
 
+// ---- OWASP ZAP baseline (CG-92) ----
+String zapImage()      { return optional('CG_ZAP_IMAGE', 'zaproxy/zap-stable:2.17.0') }
+
 // ---- Promoción de imágenes sin reconstruir (CG-116) ----
 String craneImage()    { return optional('CG_CRANE_IMAGE', 'gcr.io/go-containerregistry/crane/debug:v0.20.3') }
 
