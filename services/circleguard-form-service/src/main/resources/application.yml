@@ -13,6 +13,11 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
   kafka:
+    # Trazas (CG-96): el contexto viaja en las cabeceras del mensaje (traceparent).
+    template:
+      observation-enabled: true
+    listener:
+      observation-enabled: true
     bootstrap-servers: localhost:9092
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
@@ -22,6 +27,15 @@ server:
   port: 8086
 
 management:
+  # Trazas (CG-96): todas las peticiones se trazan (volumen bajo) y se exportan
+  # por OTLP/HTTP a Jaeger. En Kubernetes se apunta al collector con la variable.
+  # Spring Boot agrega [traceId-spanId] a cada línea de log (correlación con Loki).
+  tracing:
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
   # Métricas para Prometheus (CG-93): /actuator/prometheus, con la etiqueta
   # application para separar servicios e histogramas para calcular el p95.
   metrics:
