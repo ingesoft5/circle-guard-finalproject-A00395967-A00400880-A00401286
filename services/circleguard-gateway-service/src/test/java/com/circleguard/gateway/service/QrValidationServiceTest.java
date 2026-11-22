@@ -95,6 +95,44 @@ public class QrValidationServiceTest {
         assertEquals("GREEN", result.status());
     }
 
+    // Feature Toggle circleguard.features.strict-gate.enabled
+    @Test
+    void shouldAllowUserWithoutStatusWhenStrictGateIsOff() {
+        String anonymousId = UUID.randomUUID().toString();
+        ReflectionTestUtils.setField(service, "strictGateEnabled", false);
+        Mockito.when(valueOps.get("user:status:" + anonymousId)).thenReturn(null);
+
+        QrValidationService.ValidationResult result = service.validateToken(tokenFor(anonymousId));
+
+        assertTrue(result.valid());
+        assertEquals("GREEN", result.status());
+    }
+
+    @Test
+    void shouldDenyUserWithoutStatusWhenStrictGateIsOn() {
+        String anonymousId = UUID.randomUUID().toString();
+        ReflectionTestUtils.setField(service, "strictGateEnabled", true);
+        Mockito.when(valueOps.get("user:status:" + anonymousId)).thenReturn(null);
+
+        QrValidationService.ValidationResult result = service.validateToken(tokenFor(anonymousId));
+
+        assertFalse(result.valid());
+        assertEquals("RED", result.status());
+        assertEquals("Access Denied: Status unavailable", result.message());
+    }
+
+    @Test
+    void shouldAllowActiveUserWhenStrictGateIsOn() {
+        String anonymousId = UUID.randomUUID().toString();
+        ReflectionTestUtils.setField(service, "strictGateEnabled", true);
+        Mockito.when(valueOps.get("user:status:" + anonymousId)).thenReturn("ACTIVE");
+
+        QrValidationService.ValidationResult result = service.validateToken(tokenFor(anonymousId));
+
+        assertTrue(result.valid());
+        assertEquals("GREEN", result.status());
+    }
+
     private String tokenFor(String anonymousId) {
         Key key = Keys.hmacShaKeyFor(secret.getBytes());
         return Jwts.builder()
