@@ -39,7 +39,18 @@ subprojects {
         "implementation"("org.jetbrains.kotlin:kotlin-reflect")
         "testImplementation"("org.springframework.boot:spring-boot-starter-test")
         "testRuntimeOnly"("com.h2database:h2")
+
     }
+
+    // Parches de seguridad (CG-90): Trivy encontró CVE CRITICAL en estas
+    // dependencias de Spring Boot 3.2.4. Se suben solo a versiones con el arreglo
+    // dentro de la misma línea (compatibles con Boot 3.2). El plugin
+    // io.spring.dependency-management de cada servicio lee estas propiedades
+    // para sobrescribir las versiones del BOM de Boot.
+    extra["tomcat.version"] = "10.1.62"
+    extra["netty.version"] = "4.1.141.Final"
+    extra["spring-security.version"] = "6.2.8"
+    extra["freemarker.version"] = "2.3.35"
 
     tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
         kotlinOptions {
