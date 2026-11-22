@@ -61,10 +61,15 @@ String prodApprovers()  { return optional('CG_PROD_APPROVERS', 'luis,simon,dario
 
 /** IP o DNS del servidor de un ambiente (dev, stage o prod). */
 String host(String envName) {
+    requireEnv(envName)
+    return required("CG_${envName.toUpperCase()}_HOST")
+}
+
+/** Falla si el ambiente no es dev, stage o prod. */
+void requireEnv(String envName) {
     if (!(envName in ['dev', 'stage', 'prod'])) {
         error "Ambiente desconocido: '${envName}'. Use dev, stage o prod."
     }
-    return required("CG_${envName.toUpperCase()}_HOST")
 }
 
 /**
@@ -98,6 +103,43 @@ String snapshotOf(String release, def buildNumber) {
 String trivySeverity() { return optional('CG_TRIVY_SEVERITY', 'CRITICAL') }
 // Imagen de Trivy fija (nunca latest) para que el resultado sea reproducible.
 String trivyImage()    { return optional('CG_TRIVY_IMAGE', 'aquasec/trivy:0.58.1') }
+// Valores de ejemplo para que Trivy pueda renderizar el chart de Helm.
+String trivyHelmSet()  { return optional('CG_TRIVY_HELM_SET', 'global.registry=registry.example:8082,global.imageTag=v0.0.0') }
+
+// ---- Despliegue a Kubernetes con Helm (CG-91) ----
+// 'helm' (Kubernetes, Parte 2) o 'compose' (SSH a las VMs, Parte 1, respaldo).
+String deployTarget() {
+    String target = optional('CG_DEPLOY_TARGET', 'helm')
+    if (!(target in ['helm', 'compose'])) {
+        error "CG_DEPLOY_TARGET='${target}' no es válido: use helm o compose."
+    }
+    return target
+}
+/** Namespace del ambiente en el clúster: circleguard-dev, -stage, -prod. */
+String namespace(String envName) {
+    requireEnv(envName)
+    return "${optional('CG_K8S_NAMESPACE_PREFIX', 'circleguard-')}${envName}"
+}
+String helmChart()       { return optional('CG_HELM_CHART', 'deploy/helm/circleguard') }
+String helmRelease()     { return optional('CG_HELM_RELEASE', 'circleguard') }
+// Claves del values.yaml del chart donde van la versión y el registro.
+String helmTagKey()      { return optional('CG_HELM_TAG_KEY', 'global.imageTag') }
+String helmRegistryKey() { return optional('CG_HELM_REGISTRY_KEY', 'global.registry') }
+String helmTimeout()     { return optional('CG_HELM_TIMEOUT', '10m') }
+String helmImage()       { return optional('CG_HELM_IMAGE', 'dtzar/helm-kubectl:3.16.4') }
+
+/** URL pública del cliente web de un ambiente (E2E y ZAP). */
+String webUrl(String envName) {
+    String url = optional("CG_${envName.toUpperCase()}_URL", '')
+    return url ?: "http://${host(envName)}:${webPort()}"
+}
+
+// ---- Terraform (CG-89) ----
+String terraformDir()   { return optional('CG_TF_DIR', 'infra/terraform/envs') }
+String terraformImage() { return optional('CG_TERRAFORM_IMAGE', 'hashicorp/terraform:1.16.7') }
+
+// ---- OWASP ZAP baseline (CG-92) ----
+String zapImage()      { return optional('CG_ZAP_IMAGE', 'zaproxy/zap-stable:2.17.0') }
 
 // ---- Promoción de imágenes sin reconstruir (CG-116) ----
 String craneImage()    { return optional('CG_CRANE_IMAGE', 'gcr.io/go-containerregistry/crane/debug:v0.20.3') }

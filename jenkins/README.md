@@ -19,10 +19,14 @@
 | `cgSonar` | Análisis SonarQube + quality gate bloqueante | CG-53 |
 | `cgIntegrationTest` | `./gradlew integrationTest` (Testcontainers) | CG-54 |
 | `cgVersion` | Siguiente versión semver con git-cliff | CG-59 |
-| `cgDockerPublish` | `docker build` + `push` a Nexus | CG-55 |
-| `cgRelease` | Tag `vX.Y.Z` + release notes + GitHub Release | CG-59 |
-| `cgDeploy` | SSH + `docker compose up --wait` en un ambiente | CG-56/57 |
+| `cgDockerPublish` | `docker build` + escaneo Trivy + `push` a Nexus (SNAPSHOT en `main`) | CG-55, CG-116 |
+| `cgTrivy` | Trivy sobre imágenes (antes del push) y sobre Terraform/Helm; bloquea con `CRITICAL` | CG-90 |
+| `cgPromote` | Copia la SNAPSHOT aprobada como `vX.Y.Z` con `crane` y compara digests | CG-116 |
+| `cgRelease` | Tag `vX.Y.Z` + release notes + GitHub Release (después de promover) | CG-59 |
+| `cgDeploy` | `helm upgrade --install --atomic --wait` en el namespace del ambiente (o SSH + compose) | CG-56/57, CG-91 |
 | `cgE2E` | Playwright contra un ambiente + reportes | CG-57 |
+| `cgTerraform` | `fmt` + `validate` en todo PR; `plan` (artefacto) y `apply` del plan guardado en `main` (prod después del `input`) | CG-89 |
+| `cgZap` | OWASP ZAP baseline contra el web de dev; reglas FAIL/WARN en `tests/security-zap/` | CG-92 |
 | `cgNotify` | Mensaje a Discord | CG-60 |
 
 ## Configuración de Jenkins (una sola vez)
@@ -46,6 +50,9 @@ Abrir `http://localhost:8080`, pegar la contraseña, elegir **Select plugins →
 | `sonar-token` | Secret text | Token de análisis de SonarQube |
 | `deploy-ssh` | SSH Username with private key (usuario `deploy`) | Entrar a dev, stage y prod |
 | `discord-webhook` | Secret text | URL del webhook del canal de Discord |
+| `azure-sp` | Username with password (appId + secret del service principal) | Terraform (`ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`) |
+| `azure-tenant-id`, `azure-subscription-id` | Secret text | Terraform (`ARM_TENANT_ID`, `ARM_SUBSCRIPTION_ID`) |
+| `kubeconfig-circleguard` | Secret file | kubeconfig del clúster k3s (Darío). Solo hace falta con `CG_DEPLOY_TARGET=helm` |
 
 El token de GitHub necesita permiso sobre el repositorio (*Fine-grained*: **Contents: Read and write**, **Pull requests: Read**, **Commit statuses: Read and write**, **Metadata: Read**).
 
@@ -62,6 +69,14 @@ El token de GitHub necesita permiso sobre el repositorio (*Fine-grained*: **Cont
 | `CG_WEB_PORT` | `80` | No: puerto del cliente web para los E2E |
 | `CG_PROD_APPROVERS` | `luis,simon,dario` | No: usuarios de Jenkins que aprueban prod |
 | `CG_IMAGE_NAMESPACE` | `circleguard` | No |
+| `CG_DEPLOY_TARGET` | `helm` | No: `helm` (Kubernetes, por defecto) o `compose` (SSH a las VMs, respaldo de la Parte 1) |
+| `CG_DEV_URL`, `CG_STAGE_URL`, `CG_PROD_URL` | `http://dev.circleguard.example` | Con `helm`: URL del Ingress de cada ambiente (E2E y ZAP). Sin ella se usa `http://CG_<ENV>_HOST:CG_WEB_PORT` |
+| `CG_HELM_CHART` | `deploy/helm/circleguard` | No: carpeta del chart en el repo |
+| `CG_HELM_RELEASE` | `circleguard` | No: nombre del release de Helm |
+| `CG_HELM_TAG_KEY`, `CG_HELM_REGISTRY_KEY` | `global.imageTag`, `global.registry` | No: claves del `values.yaml` donde van la versión y el registro |
+| `CG_K8S_NAMESPACE_PREFIX` | `circleguard-` | No: namespace = prefijo + ambiente |
+| `CG_TF_DIR` | `infra/terraform/envs` | No: carpeta con una raíz de Terraform por ambiente (`dev`, `stage`, `prod`) |
+| `CG_TRIVY_SEVERITY` | `CRITICAL` | No: severidades que bloquean (p. ej. `HIGH,CRITICAL`) |
 
 Las IPs no están en el repositorio: si cambia un servidor, se actualiza aquí sin hacer commit.
 

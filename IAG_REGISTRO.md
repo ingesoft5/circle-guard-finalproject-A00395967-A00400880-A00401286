@@ -109,7 +109,7 @@ El quality gate, la publicación en Nexus, los despliegues, los E2E y las notifi
 
 ## Darío Marquínez: infraestructura y calidad (QA)
 
-**Herramienta:** Claude Code (modelo Claude Opus 5.5), sesiones del 7 y 8 de noviembre de 2026.
+**Herramienta:** Claude Code (modelo Claude Opus 5.5), sesiones del 7, 8, 21 y 22 de noviembre de 2026.
 
 ### Sesión 1 (7 de noviembre de 2026): pruebas e infraestructura en Azure
 
@@ -171,6 +171,42 @@ El quality gate, la publicación en Nexus, los despliegues, los E2E y las notifi
 - **Error de coordinación de la IA**: subió un commit a la rama del #28 cuando Luis ya lo había fusionado. Se restauró la descripción del #28 y el cambio salió en un PR nuevo (#31).
 
 **Lección:** un gate que nunca falla hay que probarlo con código malo a propósito, y una herramienta de calidad hay que verificarla con sus propios datos (qué archivos analizó, cuántas líneas), no solo con el resultado OK. Además, la IA también se equivoca al probar: cada conclusión se confirmó con una prueba limpia antes de cambiar el servidor.
+
+### Sesión 3 (21 y 22 de noviembre de 2026): Sprint 2, Terraform, Kubernetes y carga
+
+**Contenido propio entregado a la IA:**
+- Mi guía de rol del Sprint 2 (CG-77 a CG-88 y CG-117), el plan de Luis con el freeze y los requisitos de Simón para el chart, Terraform y el clúster.
+- Los mensajes del grupo con el estado de cada uno y los PR que me pidieron revisar (#41 a #49, #66 y #67 a #78).
+- Acceso a la nueva suscripción gratuita de Azure (sesión de `az` iniciada por mí) y el kubeconfig de administrador del clúster, que nunca se subió al repositorio.
+
+**Prompts empleados (resumen):**
+1. Reconstruir la infraestructura en la cuenta nueva, ahora toda con Terraform, después de que la suscripción anterior se quedó sin crédito el 15 de noviembre.
+2. Crear el chart de Helm de los 3 ambientes con los requisitos de Simón, y probarlo con su mismo comando de despliegue.
+3. Correr las pruebas de carga con un objetivo definido antes, y analizar el resultado.
+4. Revisar y aprobar los PR del equipo; aplicar al chart lo que pidió Luis para CG-101 y CG-102; instalar la observabilidad de Simón.
+
+**Qué produjo la IA:**
+
+| Entregable | Resultado | PR |
+|---|---|---|
+| Estado remoto (CG-79) | Azure Storage con bloqueo por *lease*, probado con dos `plan` a la vez | #50 |
+| Módulos y raíces (CG-77, CG-78) | 6 módulos; raíces `envs/shared` y `envs/{dev,stage,prod}`; `fmt` limpio y 0 CRITICAL en Trivy | #51 a #55 |
+| Clúster (CG-80) | k3s con los 3 namespaces y HTTPS con Let's Encrypt | #56, #63 |
+| Chart de Helm (CG-81, CG-83, CG-84) | 8 servicios, web y middleware; HPA, sondas y PVC; falla con `latest` | #58 a #60 |
+| Secretos y acceso (CG-82, CG-85, CG-86) | Key Vault → Secrets de Kubernetes; ServiceAccount de Jenkins solo en los 3 namespaces | #61, #62, #64 |
+| Limpieza de SNAPSHOT en Nexus (CG-117) | Tarea idempotente en `setup-nexus.sh` | #57 |
+| Carga con Locust (CG-88) | Normal: p95 = 160 ms y 0 % de errores. Estrés: el HPA de gateway escaló de 1 a 2 réplicas | #65 |
+
+**Revisión crítica y correcciones:**
+- **Límite de la cuenta gratuita: 4 vCPU por región.** No alcanzaba para un nodo por ambiente. Usamos un solo nodo de 32 GB y bajamos las requests de CPU, y lo verificamos con el uso real del nodo antes de instalar la observabilidad.
+- **Trivy pasaba en verde sin escanear el chart.** Sin `global.registry` ni `global.imageTag`, el chart no renderiza y Trivy lo omite sin avisar. La IA lo detectó al comparar cuántos archivos se habían analizado. Con esos valores salieron 6 HIGH en la middleware; los aceptamos y quedaron documentados.
+- **Error de la IA en el chart.** El checksum que reinicia los pods solo cubría la configuración de cada servicio. Al agregar el toggle de CG-101 al ConfigMap común, gateway no tomó la variable. Se encontró al revisar el pod después del `helm upgrade`, y se corrigió en #59 antes del merge.
+- **El cuello de botella está en auth-service y no en la portería.** En el estrés falló un tercio de los logins (1 réplica sin HPA y con 1 vCPU), mientras que la validación del QR no tuvo errores. La IA lo reportó como hallazgo con recomendaciones, sin cambiar el objetivo para que el resultado cumpliera.
+- **La IA intentó consultar costos en las suscripciones viejas, que están deshabilitadas.** La detuve: no hacía falta y no era nuestra cuenta. El costo se reportó solo con la cuenta nueva.
+- **Alertas falsas por las imágenes semilla.** Las imágenes que construimos para arrancar no exponen `/actuator/prometheus`. Las silenciamos por 12 horas con un comentario que explica cuándo borrar el silencio, en vez de desactivar la regla.
+- **Credenciales.** Algunas credenciales pasaron por el chat del equipo. Quedó como tarea rotarlas después de la sustentación, empezando por el service principal de Azure.
+
+**Lección:** que una herramienta salga en verde no prueba que revisó algo. Hay que mirar qué analizó, como pasó con Trivy y antes con Sonar. Y un cambio de configuración se confirma en el pod que corre, no solo en el chart.
 
 ---
 

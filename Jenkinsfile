@@ -93,6 +93,29 @@ pipeline {
                     steps { script { cgTrivy.scanConfig(['infra/terraform', 'deploy/helm']) } }
                 }
 
+                // CG-89: formato y validación de Terraform en cualquier rama (sin nube).
+                stage('Terraform validate') {
+                    steps { script { cgTerraform.validate() } }
+                }
+
+                // CG-89: en main se planea cada ambiente. El plan de prod se hace
+                // ANTES de la aprobación para que quien aprueba lo pueda revisar.
+                stage('Terraform plan') {
+                    when { branch 'main' }
+                    steps {
+                        script {
+                            env.TF_DEV_CHANGES = terraformPlan('dev')
+                            env.TF_STAGE_CHANGES = terraformPlan('stage')
+                            env.TF_PROD_CHANGES = terraformPlan('prod')
+                        }
+                    }
+                }
+
+                stage('Terraform apply DEV') {
+                    when { expression { env.TF_DEV_CHANGES == 'true' } }
+                    steps { script { cgTerraform.apply('dev') } }
+                }
+
                 // ----------------------- Solo en main (CD) -----------------------
 
                 stage('Versión') {
@@ -128,7 +151,20 @@ pipeline {
 
                 stage('E2E sobre DEV') {
                     when { expression { isRelease() } }
-                    steps { script { cgE2E("http://${cgConfig.host('dev')}:${cgConfig.webPort()}") } }
+                    // URL del web en dev: el Ingress del clúster (CG_DEV_URL) o la VM.
+                    steps { script { cgE2E(cgConfig.webUrl('dev')) } }
+                }
+
+                // CG-92: escaneo pasivo de seguridad del web en dev. Una alerta FAIL
+                // (tests/security-zap/zap-baseline.conf) frena la promoción.
+                stage('OWASP ZAP sobre DEV') {
+                    when { expression { isRelease() } }
+                    steps { script { cgZap(cgConfig.webUrl('dev')) } }
+                }
+
+                stage('Terraform apply STAGE') {
+                    when { expression { env.TF_STAGE_CHANGES == 'true' } }
+                    steps { script { cgTerraform.apply('stage') } }
                 }
 
                 stage('Deploy STAGE') {
@@ -143,14 +179,14 @@ pipeline {
         }
 
         stage('Aprobación PROD') {
-            when { expression { isRelease() } }
+            when { expression { needsProd() } }
             // Sin agente: nadie ocupa un ejecutor mientras una persona decide.
             steps {
                 timeout(time: 2, unit: 'HOURS') {
                     script {
                         env.PROD_APPROVER = input(
-                            message: "¿Promover ${env.SNAPSHOT} como ${env.VERSION} y desplegar a PRODUCCIÓN?",
-                            ok: 'Promover y desplegar',
+                            message: prodQuestion(),
+                            ok: 'Aprobar',
                             submitter: cgConfig.prodApprovers(),
                             submitterParameter: 'APPROVER'
                         )
@@ -165,14 +201,24 @@ pipeline {
             // cada PR esperaba un ejecutor libre solo para saltarse esta etapa.
             when {
                 beforeAgent true
-                expression { isRelease() }
+                expression { needsProd() }
             }
             agent any
             stages {
+                stage('Checkout PROD') {
+                    steps { checkout scm }
+                }
+
+                // CG-89: aplica exactamente el plan de prod que se aprobó.
+                stage('Terraform apply PROD') {
+                    when { expression { env.TF_PROD_CHANGES == 'true' } }
+                    steps { script { cgTerraform.apply('prod') } }
+                }
+
                 // CG-116: la SNAPSHOT aprobada pasa a ser el release, mismo digest.
                 stage('Promover a release') {
+                    when { expression { isRelease() } }
                     steps {
-                        checkout scm
                         cgPromote(release: env.VERSION, snapshot: env.SNAPSHOT)
                         script { currentBuild.displayName = "#${env.BUILD_NUMBER} ${env.VERSION}" }
                     }
@@ -180,10 +226,12 @@ pipeline {
 
                 // El tag y el release se crean solo después de aprobar y promover.
                 stage('Tag + release notes') {
+                    when { expression { isRelease() } }
                     steps { cgRelease(env.VERSION) }
                 }
 
                 stage('Deploy PROD') {
+                    when { expression { isRelease() } }
                     steps {
                         cgDeploy(env: 'prod', version: env.VERSION)
                         script {
@@ -222,6 +270,28 @@ List<String> services() {
 /** true si este build de main produce un release (hay una versión nueva). */
 boolean isRelease() {
     return env.BRANCH_NAME == 'main' && env.VERSION
+}
+
+/** 'true' si el ambiente tiene Terraform y su plan tiene cambios. */
+String terraformPlan(String envName) {
+    return (cgTerraform.present(envName) && cgTerraform.plan(envName)).toString()
+}
+
+/** true si hay algo para producción: un release o cambios de Terraform en prod. */
+boolean needsProd() {
+    return isRelease() || env.TF_PROD_CHANGES == 'true'
+}
+
+/** Pregunta de la aprobación según lo que vaya a cambiar en producción. */
+String prodQuestion() {
+    List<String> parts = []
+    if (isRelease()) {
+        parts << "promover ${env.SNAPSHOT} como ${env.VERSION} y desplegarla"
+    }
+    if (env.TF_PROD_CHANGES == 'true') {
+        parts << 'aplicar el plan de Terraform (ver tfplan-prod.txt en los artefactos)'
+    }
+    return "¿PRODUCCIÓN: ${parts.join(' y ')}?"
 }
 
 /** Envía la notificación desde un nodo (el post global no tiene agente). */

@@ -1,32 +1,92 @@
-// Despliegue a un ambiente por SSH + Docker Compose (CG-56, CG-57, CG-61).
+// Despliegue a un ambiente (CG-56, CG-57, CG-61; Kubernetes en CG-91).
 //
-// En el servidor del ambiente, dentro de <CG_DEPLOY_DIR>/<ambiente>, está el
-// docker-compose.yml de Luis, que usa ${REGISTRY}/circleguard/<x>:${VERSION}.
-// El pipeline exporta VERSION y también REGISTRY (desde CG_REGISTRY): así el
-// registro del que se descarga es el mismo en el que Jenkins publicó, aunque
-// el .env del servidor no lo defina. Las variables del shell tienen prioridad
-// sobre el .env en Docker Compose.
+// Dos modos, según la variable global CG_DEPLOY_TARGET:
 //
-// - 'docker compose up --wait' espera a que todos los contenedores queden
-//   healthy (healthchecks del compose). Si alguno no lo logra en 10 minutos,
-//   el comando falla y el build queda en rojo.
-// - La versión desplegada se guarda en .deployed-version en el servidor: así
-//   el job de rollback puede mostrar el "antes" y el "después".
-// - La llave SSH está en la credencial 'deploy-ssh'; nunca en el repositorio.
+// 'helm' (por defecto, Parte 2): helm upgrade --install del chart de la app en
+//   el namespace del ambiente (circleguard-dev, -stage, -prod), con la versión
+//   como valor. --atomic --wait: si algún pod no queda listo (sondas de
+//   Actuator) dentro del timeout, Helm deshace el cambio solo y el build queda
+//   en rojo; el ambiente sigue con la versión anterior. El kubeconfig viene de
+//   la credencial 'kubeconfig-circleguard' (archivo secreto), nunca del repo.
 //
-// Uso: cgDeploy(env: 'dev', version: 'v1.1.0')
+// 'compose' (Parte 1, respaldo): SSH + docker compose en las VMs. Se conserva
+//   para poder volver a él cambiando una variable si el clúster falla.
+//
+// Uso: cgDeploy(env: 'dev', version: 'v1.1.0-SNAPSHOT.42')
 
 void call(Map args) {
     String envName = args.env
     String version = args.version
     cgConfig.requireSemver(version)
-    String host = args.host ?: cgConfig.host(envName)
 
-    echo "Desplegando ${version} en ${envName} (${host})"
-    String before = currentVersion(envName, host)
-    echo "Versión actual en ${envName}: ${before ?: '(ninguna)'}"
+    String before = currentVersion(envName)
+    echo "Desplegando ${version} en ${envName} (${cgConfig.deployTarget()}). Versión actual: ${before ?: '(ninguna)'}"
+    if (cgConfig.deployTarget() == 'helm') {
+        helmDeploy(envName, version)
+    } else {
+        composeDeploy(envName, version)
+    }
+    echo "${envName}: ${before ?: '(ninguna)'} -> ${version}"
+}
 
-    withDeployEnv(envName, host) {
+/** Versión desplegada actualmente en un ambiente ('' si no hay ninguna). */
+String currentVersion(String envName) {
+    return cgConfig.deployTarget() == 'helm' ? helmCurrentVersion(envName) : composeCurrentVersion(envName)
+}
+
+// ---------------------------------------------------------------- Helm (K8s)
+
+void helmDeploy(String envName, String version) {
+    String chart = cgConfig.helmChart()
+    String valuesFile = "${chart}/values-${envName}.yaml"
+    withHelm(envName) {
+        withEnv(["CHART=${chart}", "VALUES=${fileExists(valuesFile) ? valuesFile : ''}",
+                 "TAG_KEY=${cgConfig.helmTagKey()}", "REGISTRY_KEY=${cgConfig.helmRegistryKey()}",
+                 "DEPLOY_VERSION=${version}", "DEPLOY_REGISTRY=${cgConfig.registry()}"]) {
+            sh '''
+                helm upgrade --install "$RELEASE" "$CHART" \
+                    --namespace "$NAMESPACE" \
+                    ${VALUES:+--values "$VALUES"} \
+                    --set "$TAG_KEY=$DEPLOY_VERSION" \
+                    --set "$REGISTRY_KEY=$DEPLOY_REGISTRY" \
+                    --atomic --wait --timeout "$HELM_TIMEOUT"
+                helm status "$RELEASE" --namespace "$NAMESPACE"
+                kubectl get pods --namespace "$NAMESPACE" -o wide
+            '''
+        }
+    }
+}
+
+String helmCurrentVersion(String envName) {
+    String version = ''
+    withHelm(envName) {
+        String json = sh(returnStdout: true,
+                         script: 'helm get values "$RELEASE" --namespace "$NAMESPACE" --all -o json 2>/dev/null || true').trim()
+        if (json) {
+            def node = readJSON(text: json)
+            cgConfig.helmTagKey().tokenize('.').each { key -> node = node?.get(key) }
+            version = node ? node.toString() : ''
+        }
+    }
+    return version
+}
+
+/** Corre el cuerpo en el contenedor de Helm (trae kubectl) con el kubeconfig del clúster. */
+void withHelm(String envName, Closure body) {
+    withCredentials([file(credentialsId: 'kubeconfig-circleguard', variable: 'KUBECONFIG')]) {
+        docker.image(cgConfig.helmImage()).inside('--entrypoint=') {
+            withEnv(["RELEASE=${cgConfig.helmRelease()}", "NAMESPACE=${cgConfig.namespace(envName)}",
+                     "HELM_TIMEOUT=${cgConfig.helmTimeout()}", "HOME=${pwd()}/.helm-home"]) {
+                body()
+            }
+        }
+    }
+}
+
+// ------------------------------------------------- Docker Compose por SSH (P1)
+
+void composeDeploy(String envName, String version) {
+    withDeployEnv(envName) {
         withEnv(["DEPLOY_VERSION=${version}", "DEPLOY_REGISTRY=${cgConfig.registry()}"]) {
             sh '''
                 ssh -o StrictHostKeyChecking=accept-new "${DEPLOY_USER}@${DEPLOY_HOST}" "
@@ -42,14 +102,11 @@ void call(Map args) {
             '''
         }
     }
-    echo "${envName}: ${before ?: '(ninguna)'} -> ${version}"
 }
 
-/** Versión desplegada actualmente en un ambiente ('' si no hay ninguna). */
-String currentVersion(String envName, String host = null) {
-    String target = host ?: cgConfig.host(envName)
+String composeCurrentVersion(String envName) {
     String version = ''
-    withDeployEnv(envName, target) {
+    withDeployEnv(envName) {
         version = sh(
             script: '''ssh -o StrictHostKeyChecking=accept-new "${DEPLOY_USER}@${DEPLOY_HOST}" \
                        "cat '${DEPLOY_PATH}/.deployed-version' 2>/dev/null || true"''',
@@ -59,10 +116,10 @@ String currentVersion(String envName, String host = null) {
     return version
 }
 
-void withDeployEnv(String envName, String host, Closure body) {
+void withDeployEnv(String envName, Closure body) {
     sshagent(credentials: ['deploy-ssh']) {
         withEnv([
-            "DEPLOY_HOST=${host}",
+            "DEPLOY_HOST=${cgConfig.host(envName)}",
             "DEPLOY_USER=${cgConfig.deployUser()}",
             "DEPLOY_PATH=${cgConfig.deployDir()}/${envName}",
         ]) {
