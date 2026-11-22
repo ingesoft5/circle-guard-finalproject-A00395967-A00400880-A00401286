@@ -16,6 +16,24 @@ spring:
 server:
   port: 8084
 
+# Circuit Breaker hacia promotion-service (CG-98). Ventana de las últimas 10
+# llamadas: si al menos la mitad falla (o tarda más de 2 s), el circuito se abre
+# 30 s y las llamadas van directo al fallback; luego deja pasar 2 de prueba.
+resilience4j:
+  circuitbreaker:
+    instances:
+      promotion:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        slow-call-duration-threshold: 2s
+        slow-call-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 2
+        automatic-transition-from-open-to-half-open-enabled: true
+        register-health-indicator: false
+
 management:
   endpoints:
     web:
