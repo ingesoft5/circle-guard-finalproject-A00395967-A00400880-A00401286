@@ -35,7 +35,7 @@ jobs:
       # Archivos generados que no cuentan (expresión regular sobre la ruta):
       # **/package-lock.json, **/yarn.lock, gradle/wrapper/**, **/*.lock,
       # observability/dashboards/**/*.json, *.png, *.jpg, *.svg, docs/**/evidencia/**
-      EXCLUDE: '(^|/)package-lock\.json$|(^|/)yarn\.lock$|^gradle/wrapper/|\.lock$|^observability/dashboards/.*\.json$|\.(png|jpg|svg)$|^docs/(.*/)?evidencia/'
+      EXCLUDE: '(^|/)package-lock\.json$|(^|/)yarn\.lock$|^gradle/wrapper/|\.lock$|\.terraform\.lock\.hcl$|^tests/performance/results/|^observability/dashboards/.*\.json$|\.(png|jpg|svg)$|^docs/(.*/)?evidencia/'
     steps:
       - name: Count changed lines
         id: count

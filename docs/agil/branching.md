@@ -184,6 +184,8 @@ Cuenta la suma de `additions + deletions` de cada archivo del PR, tal como la re
 | Patrón excluido | Por qué |
 |---|---|
 | `**/package-lock.json`, `**/yarn.lock`, `**/*.lock` | Los genera el gestor de dependencias |
+| `**/.terraform.lock.hcl` | Lo genera `terraform init` (hashes de los proveedores) |
+| `tests/performance/results/**` | Resultados exportados por Locust (CSV y HTML), no código |
 | `gradle/wrapper/**` | Lo genera `gradle wrapper` |
 | `observability/dashboards/**/*.json` | Son dashboards exportados desde Grafana |
 | `*.png`, `*.jpg`, `*.svg` | Son imágenes (diagramas exportados, capturas) |
