@@ -19,6 +19,11 @@ public class QrValidationService {
     @Value("${qr.secret}")
     private String qrSecret;
 
+    // Feature Toggle: modo estricto del torniquete. Apagado por defecto (valor seguro:
+    // comportamiento original). Se sobrescribe con CIRCLEGUARD_FEATURES_STRICT_GATE_ENABLED.
+    @Value("${circleguard.features.strict-gate.enabled:false}")
+    private boolean strictGateEnabled;
+
     private static final String STATUS_KEY_PREFIX = "user:status:";
 
     // Estados que niegan el ingreso. promotion-service escribe en Redis
@@ -41,6 +46,11 @@ public class QrValidationService {
             // Check Redis for current Health Status
             String status = redisTemplate.opsForValue().get(STATUS_KEY_PREFIX + anonymousId);
             
+            // Modo estricto: sin estado en Redis no se puede confirmar que el usuario esté sano.
+            if (status == null && strictGateEnabled) {
+                return new ValidationResult(false, "RED", "Access Denied: Status unavailable");
+            }
+
             if (status != null && DENIED_STATUSES.contains(status)) {
                 return new ValidationResult(false, "RED", "Access Denied: Health Risk Detected");
             }

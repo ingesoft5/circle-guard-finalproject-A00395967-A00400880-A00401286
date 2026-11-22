@@ -14,6 +14,13 @@ qr:
   secret: "my-qr-secret-key-for-dev-1234567890"
   expiration: 300000 # milisegundos (5 minutos)
 
+circleguard:
+  features:
+    strict-gate:
+      # Feature Toggle: si es true, niega el ingreso a quien no tenga estado en Redis.
+      # Variable de entorno: CIRCLEGUARD_FEATURES_STRICT_GATE_ENABLED
+      enabled: false
+
 server:
   port: 8087
 
