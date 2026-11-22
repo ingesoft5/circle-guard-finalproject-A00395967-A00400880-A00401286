@@ -6,9 +6,11 @@
 > [`infra/terraform`](../infra/terraform/README.md),
 > [`deploy/helm/circleguard`](../deploy/helm/circleguard/README.md) y
 > [`observability`](../observability/README.md), que ya están en `main`.
-> El pipeline de `main` todavía despliega por SSH + Docker Compose (`cgDeploy`);
-> el despliegue automático a Kubernetes y el rollback en Kubernetes están marcados
-> como **pendiente: se completa cuando exista en main**. No se inventó ningún comando.
+> El pipeline de `main` ya despliega a Kubernetes con Helm (`cgDeploy` con
+> `CG_DEPLOY_TARGET=helm`, el valor por defecto) y conserva Compose como respaldo.
+> Lo que aún no tiene evidencia en el repo (p. ej. `docs/change-management/rollback.md`,
+> CG-104) queda marcado como **pendiente: se completa cuando exista en main**.
+> No se inventó ningún comando.
 
 ## Contenido
 
@@ -87,8 +89,10 @@ for e in dev stage prod; do ./deploy/helm/create-secrets.sh $e; done          # 
 
 - `envs/shared` crea red, NSG, el nodo k3s (`cg-k3s`), la VM `cg-tools`, alertas y
   presupuesto; `envs/{dev,stage,prod}` crean Key Vault y respaldos.
-- Los comandos de Kubernetes usan `KUBECONFIG=~/.kube/circleguard.yaml`. Cómo se
-  obtiene ese archivo: pendiente de evidencia (no está en los README). Nunca va al repositorio.
+- Los comandos de Kubernetes usan `KUBECONFIG=~/.kube/circleguard.yaml`. Ese archivo
+  (kubeconfig de administrador) se baja por SSH desde el nodo k3s; ver «Kubeconfig de
+  administrador» en [infra/terraform/README.md](../infra/terraform/README.md). La API (6443)
+  solo responde a las IP del NSG. Nunca va al repositorio ni se comparte.
 - Los Secrets: ver [docs/infra/secretos.md](infra/secretos.md).
 - Backend del estado y su estado: `./infra/terraform/bootstrap/state.sh --status`.
 - Después del paso 3, configurar Jenkins con §1.2 y agregar la credencial
@@ -116,8 +120,10 @@ Fuente: [README.md §5–6](../README.md) y [jenkins/README.md](../jenkins/READM
    imágenes como `vX.Y.Z-SNAPSHOT.<build>` (con Trivy) → deploy dev → E2E → deploy stage →
    **aprobación** → promover la SNAPSHOT a release → tag y release notes → deploy prod.
    Si se rechaza la aprobación no se crea ninguna release.
-5. Hoy los pasos de deploy del pipeline usan `cgDeploy` (SSH + Docker Compose). El
-   despliegue del pipeline a Kubernetes: **pendiente: se completa cuando exista en main**.
+5. Los pasos de deploy usan `cgDeploy`: por defecto `helm upgrade --install --atomic --wait`
+   en el namespace del ambiente (`circleguard-dev|stage|prod`), con el kubeconfig de la
+   credencial `kubeconfig-circleguard`. Con `CG_DEPLOY_TARGET=compose` vuelve a SSH + Compose
+   (fuente: [jenkins/README.md](../jenkins/README.md), `jenkins/vars/cgDeploy.groovy`).
 
 ### 2.2 A mano (vigente)
 
@@ -164,8 +170,9 @@ helm upgrade --install circleguard deploy/helm/circleguard -n circleguard-dev \
 - `--atomic` revierte solo si el despliegue falla.
 - Solo el cliente web queda público (Ingress con TLS); los backends son internos.
 
-**Por el pipeline:** el paso que despliega a Kubernetes es **pendiente: se completa cuando
-exista en main** (hoy `cgDeploy` usa Compose).
+**Por el pipeline:** `cgDeploy` ejecuta el mismo `helm upgrade --install --atomic --wait`
+(ver [§2.1](#21-por-el-pipeline-vigente)); si un pod no queda listo, Helm deshace el cambio y
+el build queda en rojo.
 
 ## 3. Aprobar producción
 
@@ -179,8 +186,9 @@ Fuente: [README.md §6](../README.md).
    [docs/change-management/politica-de-aprobacion.md](change-management/politica-de-aprobacion.md).
 
 Cambios de la Parte 2 en esta etapa (convención SNAPSHOT → release, re-etiquetado de
-la misma imagen): ver [versionado-y-releases.md](change-management/versionado-y-releases.md);
-**pendiente: se completa cuando exista en main** la implementación en el pipeline.
+la misma imagen): ver [versionado-y-releases.md](change-management/versionado-y-releases.md).
+La promoción la hace `cgPromote` (copia con `crane` y compara digests) y luego `cgRelease`
+(fuente: jenkins/README.md). Captura de una aprobación real: pendiente de evidencia.
 
 ## 4. Hacer rollback
 
@@ -212,13 +220,18 @@ eso las migraciones deben ser compatibles con la versión anterior (expand/contr
 
 ### 4.3 En Kubernetes
 
-**Pendiente: se completa cuando exista en main.** El job `circleguard-rollback` de `main`
-usa `cgDeploy` (Compose) y no existe aún `docs/change-management/rollback.md` (CG-104).
-Los comandos `helm history`/`helm rollback` y `kubectl rollout history` no están en ningún
-README del repo: pendiente de evidencia. Lo único documentado hoy es que el chart usa
-`--atomic` (revierte si el despliegue falla) y que se puede volver a una versión anterior
-repitiendo el `helm upgrade --install` de [§2.3](#23-en-kubernetes) con `global.imageTag`
-de una versión publicada (procedimiento a validar por el equipo antes de usarlo en prod).
+Con `CG_DEPLOY_TARGET=helm` (el valor por defecto) el mismo job `circleguard-rollback`
+(§4.1) ejecuta un `helm upgrade` con la versión anterior en el namespace del ambiente, con
+`--atomic --wait`: si esa versión no arranca, Helm deja el ambiente como estaba
+(fuente: comentario de `jenkins/Jenkinsfile.rollback`). Se usa a propósito en vez de
+`helm rollback N`, para que la versión pedida quede explícita.
+
+- A mano: repetir el `helm upgrade --install` de [§2.3](#23-en-kubernetes) con `global.imageTag`
+  de una versión ya publicada.
+- El plan formal (quién decide y aprueba, verificación) irá en
+  `docs/change-management/rollback.md` (CG-104): **pendiente: se completa cuando exista en main**.
+- Los comandos `helm history` y `kubectl rollout history` no están en ningún README del
+  repo: pendiente de evidencia.
 
 ## 5. Ver los dashboards
 
@@ -305,12 +318,21 @@ Encendidas cuestan unos USD 0,46 por hora; apagadas, unos USD 0,5 por día.
 
 ### 7.2 Parte 2 (`terraform destroy`)
 
-**Pendiente de evidencia:** el README de `infra/terraform` documenta `apply`, pero **no**
-un `terraform destroy`. Lo que sí está documentado y debe respetarse:
+Fuente: «Destruir la infraestructura» en [infra/terraform/README.md](../infra/terraform/README.md).
+Primero los ambientes y al final `shared`, en orden inverso a la creación:
 
-- Apagar sin borrar (fuente: infra/terraform/README.md):
-  `az vm deallocate --ids $(az vm list -g circleguard-rg --query "[].id" -o tsv)`.
-- El estado remoto vive en `cg-tfstate-rg`, **separado** de los ambientes: un `destroy` no lo toca.
-- `helm.sh/resource-policy: keep` protege el PVC `file-service-uploads` (chart README).
-- Los comandos exactos de destrucción (orden de las raíces `dev`/`stage`/`prod`/`shared` y
-  confirmación) los define Darío antes de ejecutarlos: **no correr nada hasta tenerlos**.
+```bash
+for e in prod stage dev; do terraform -chdir=infra/terraform/envs/$e destroy; done   # Key Vault y respaldos
+terraform -chdir=infra/terraform/envs/shared destroy                                 # clúster, tools, red y alertas
+```
+
+- **Antes:** exportar los dashboards de Grafana y los reportes de Jenkins; los discos de
+  las VMs se borran con `shared`.
+- Los Key Vault quedan en borrado suave. Para recrearlos con el mismo nombre:
+  `az keyvault list-deleted` y `az keyvault purge -n <nombre>`.
+- El estado (`cg-tfstate-rg`) no lo toca ningún `destroy`; se borra al final, si ya no
+  se va a usar: `az group delete -n cg-tfstate-rg`.
+- Verificar que no quede nada con costo: `az resource list --tag project=circleguard -o table`
+  debe salir vacío.
+- Apagar sin borrar: `az vm deallocate --ids $(az vm list -g circleguard-rg --query "[].id" -o tsv)`.
+- `helm.sh/resource-policy: keep` protege el PVC `file-service-uploads` (README del chart).
