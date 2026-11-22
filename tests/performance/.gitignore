@@ -1,0 +1,4 @@
+# Locust (CG-88)
+__pycache__/
+*.pyc
+.venv/
