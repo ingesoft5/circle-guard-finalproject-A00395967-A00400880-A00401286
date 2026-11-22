@@ -1,0 +1,74 @@
+# CG-81/83/84/86 · circleguard-dev en Kubernetes (2026-11-21 21:53 America/Bogota)
+$ helm list -n circleguard-dev
+NAME       	NAMESPACE      	REVISION	UPDATED                             	STATUS  	CHART            	APP VERSION
+circleguard	circleguard-dev	1       	2026-11-21 21:50:33.037103 -0500 -05	deployed	circleguard-0.1.0	1.0.x      
+
+$ kubectl get pods,svc,ingress,hpa,pvc -n circleguard-dev
+NAME                                        READY   STATUS    RESTARTS   AGE
+pod/auth-service-548f45-h6s5t               1/1     Running   0          2m29s
+pod/dashboard-service-78785997d8-8xn2b      1/1     Running   0          2m29s
+pod/file-service-77586f5744-ml4lp           1/1     Running   0          2m29s
+pod/form-service-68974c444d-2cvzn           1/1     Running   0          2m28s
+pod/gateway-service-6c4c5d9747-dkq6d        1/1     Running   0          2m28s
+pod/identity-service-597dcf555-cvqmt        1/1     Running   0          2m28s
+pod/kafka-0                                 1/1     Running   0          2m25s
+pod/neo4j-0                                 1/1     Running   0          2m26s
+pod/notification-service-7f587c7456-nfblm   1/1     Running   0          2m28s
+pod/openldap-0                              1/1     Running   0          2m25s
+pod/postgres-0                              1/1     Running   0          2m26s
+pod/promotion-service-67785fc4db-7kwrv      1/1     Running   0          2m27s
+pod/redis-0                                 1/1     Running   0          2m25s
+pod/web-77ccd888c8-jbbrs                    1/1     Running   0          2m27s
+pod/zookeeper-0                             1/1     Running   0          2m25s
+
+NAME                           TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)             AGE
+service/auth-service           ClusterIP   10.43.66.46     <none>        8180/TCP            2m34s
+service/dashboard-service      ClusterIP   10.43.83.43     <none>        8084/TCP            2m34s
+service/file-service           ClusterIP   10.43.249.206   <none>        8085/TCP            2m34s
+service/form-service           ClusterIP   10.43.142.121   <none>        8086/TCP            2m33s
+service/gateway-service        ClusterIP   10.43.118.236   <none>        8087/TCP            2m33s
+service/identity-service       ClusterIP   10.43.254.203   <none>        8083/TCP            2m33s
+service/kafka                  ClusterIP   10.43.81.29     <none>        29092/TCP           2m31s
+service/neo4j                  ClusterIP   10.43.143.230   <none>        7687/TCP,7474/TCP   2m32s
+service/notification-service   ClusterIP   10.43.45.185    <none>        8082/TCP            2m33s
+service/openldap               ClusterIP   10.43.72.123    <none>        389/TCP             2m31s
+service/postgres               ClusterIP   10.43.129.93    <none>        5432/TCP            2m32s
+service/promotion-service      ClusterIP   10.43.196.54    <none>        8088/TCP            2m32s
+service/redis                  ClusterIP   10.43.152.1     <none>        6379/TCP            2m31s
+service/web                    ClusterIP   10.43.205.2     <none>        80/TCP              2m31s
+service/zookeeper              ClusterIP   10.43.25.76     <none>        2181/TCP            2m32s
+
+NAME                            CLASS     HOSTS                      ADDRESS     PORTS     AGE
+ingress.networking.k8s.io/web   traefik   dev.40-64-120-3.sslip.io   10.20.1.4   80, 443   2m25s
+
+NAME                                                    REFERENCE                      TARGETS              MINPODS   MAXPODS   REPLICAS   AGE
+horizontalpodautoscaler.autoscaling/form-service        Deployment/form-service        cpu: 3%/70%          1         2         1          2m28s
+horizontalpodautoscaler.autoscaling/gateway-service     Deployment/gateway-service     cpu: 3%/70%          1         2         1          2m28s
+horizontalpodautoscaler.autoscaling/promotion-service   Deployment/promotion-service   cpu: <unknown>/70%   1         2         1          2m27s
+
+NAME                                         STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
+persistentvolumeclaim/data-kafka-0           Bound    pvc-674b5b91-7468-4ca6-939f-2aff797bee62   2Gi        RWO            local-path     <unset>                 13m
+persistentvolumeclaim/data-neo4j-0           Bound    pvc-678d2305-07a0-4cd2-a0b7-80c84f6390eb   2Gi        RWO            local-path     <unset>                 13m
+persistentvolumeclaim/data-openldap-0        Bound    pvc-c7363d1f-a341-4f8a-b111-c3753b0f5555   512Mi      RWO            local-path     <unset>                 13m
+persistentvolumeclaim/data-postgres-0        Bound    pvc-505ac368-0500-4ce7-9da7-e47d46209e57   2Gi        RWO            local-path     <unset>                 13m
+persistentvolumeclaim/data-redis-0           Bound    pvc-c956a355-86bc-445a-a82c-e59e4ad4f81a   1Gi        RWO            local-path     <unset>                 13m
+persistentvolumeclaim/data-zookeeper-0       Bound    pvc-6d311a45-fb8e-4538-a279-7494a83481b4   1Gi        RWO            local-path     <unset>                 13m
+persistentvolumeclaim/file-service-uploads   Bound    pvc-51b826f9-0648-4e21-9e65-04646cbebedf   2Gi        RWO            local-path     <unset>                 13m
+
+$ kubectl get certificate -n circleguard-dev
+NAME      READY   SECRET    AGE
+web-tls   True    web-tls   2m26s
+
+$ curl -vI https://dev.40-64-120-3.sslip.io/   (TLS de Let's Encrypt)
+* SSL connection using TLSv1.3 / AEAD-CHACHA20-POLY1305-SHA256 / [blank] / UNDEF
+*  subject: CN=dev.40-64-120-3.sslip.io
+*  expire date: Feb 20 01:41:48 2027 GMT
+*  issuer: C=US; O=Let's Encrypt; CN=YR2
+< HTTP/2 200 
+
+$ curl -I http://dev.40-64-120-3.sslip.io/   (redirección a HTTPS)
+HTTP/1.1 308 Permanent Redirect
+Location: https://dev.40-64-120-3.sslip.io/
+
+$ curl https://dev.40-64-120-3.sslip.io/svc/auth/actuator/health   (actuator no se expone)
+404
