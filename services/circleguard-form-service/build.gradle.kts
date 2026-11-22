@@ -14,6 +14,9 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     // Exporta las métricas en formato Prometheus en /actuator/prometheus (CG-93)
     runtimeOnly("io.micrometer:micrometer-registry-prometheus")
+    // Trazado distribuido (CG-96): Micrometer Tracing + OpenTelemetry, exporta por OTLP a Jaeger
+    implementation("io.micrometer:micrometer-tracing-bridge-otel")
+    implementation("io.opentelemetry:opentelemetry-exporter-otlp")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.kafka:spring-kafka")
     implementation("org.flywaydb:flyway-core")
