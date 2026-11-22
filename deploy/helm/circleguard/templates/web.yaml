@@ -31,6 +31,16 @@ data:
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
 
+        # El TLS termina en Traefik: el navegador envía Origin https://<host>, pero a
+        # nginx y a Spring la petición les llega por http, y Spring la trata como CORS
+        # y responde 403. Si Origin es el mismo host, la petición es del mismo origen
+        # y se reenvía sin Origin; otro origen se sigue enviando y Spring lo rechaza.
+        set $cg_origin $http_origin;
+        if ($http_origin = "https://$host") {
+            set $cg_origin "";
+        }
+        proxy_set_header Origin $cg_origin;
+
         location = /healthz {
             access_log off;
             default_type text/plain;
