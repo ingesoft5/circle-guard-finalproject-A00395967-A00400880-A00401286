@@ -1,0 +1,5 @@
+# Copiar como terraform.tfvars (no se versiona) y poner valores reales.
+admin_cidr          = "203.0.113.10/32"
+ssh_public_key_path = "~/.ssh/id_ed25519.pub"
+alert_emails        = ["equipo@example.com"]
+monthly_budget_usd  = 150
