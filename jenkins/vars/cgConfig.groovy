@@ -132,6 +132,10 @@ String webUrl(String envName) {
     return url ?: "http://${host(envName)}:${webPort()}"
 }
 
+// ---- Terraform (CG-89) ----
+String terraformDir()   { return optional('CG_TF_DIR', 'infra/terraform/envs') }
+String terraformImage() { return optional('CG_TERRAFORM_IMAGE', 'hashicorp/terraform:1.16.7') }
+
 // ---- OWASP ZAP baseline (CG-92) ----
 String zapImage()      { return optional('CG_ZAP_IMAGE', 'zaproxy/zap-stable:2.17.0') }
 

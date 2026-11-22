@@ -25,6 +25,7 @@
 | `cgRelease` | Tag `vX.Y.Z` + release notes + GitHub Release (después de promover) | CG-59 |
 | `cgDeploy` | `helm upgrade --install --atomic --wait` en el namespace del ambiente (o SSH + compose) | CG-56/57, CG-91 |
 | `cgE2E` | Playwright contra un ambiente + reportes | CG-57 |
+| `cgTerraform` | `fmt` + `validate` en todo PR; `plan` (artefacto) y `apply` del plan guardado en `main` (prod después del `input`) | CG-89 |
 | `cgZap` | OWASP ZAP baseline contra el web de dev; reglas FAIL/WARN en `tests/security-zap/` | CG-92 |
 | `cgNotify` | Mensaje a Discord | CG-60 |
 
@@ -49,6 +50,8 @@ Abrir `http://localhost:8080`, pegar la contraseña, elegir **Select plugins →
 | `sonar-token` | Secret text | Token de análisis de SonarQube |
 | `deploy-ssh` | SSH Username with private key (usuario `deploy`) | Entrar a dev, stage y prod |
 | `discord-webhook` | Secret text | URL del webhook del canal de Discord |
+| `azure-sp` | Username with password (appId + secret del service principal) | Terraform (`ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`) |
+| `azure-tenant-id`, `azure-subscription-id` | Secret text | Terraform (`ARM_TENANT_ID`, `ARM_SUBSCRIPTION_ID`) |
 | `kubeconfig-circleguard` | Secret file | kubeconfig del clúster k3s (Darío). Solo hace falta con `CG_DEPLOY_TARGET=helm` |
 
 El token de GitHub necesita permiso sobre el repositorio (*Fine-grained*: **Contents: Read and write**, **Pull requests: Read**, **Commit statuses: Read and write**, **Metadata: Read**).
@@ -72,6 +75,7 @@ El token de GitHub necesita permiso sobre el repositorio (*Fine-grained*: **Cont
 | `CG_HELM_RELEASE` | `circleguard` | No: nombre del release de Helm |
 | `CG_HELM_TAG_KEY`, `CG_HELM_REGISTRY_KEY` | `global.imageTag`, `global.registry` | No: claves del `values.yaml` donde van la versión y el registro |
 | `CG_K8S_NAMESPACE_PREFIX` | `circleguard-` | No: namespace = prefijo + ambiente |
+| `CG_TF_DIR` | `infra/terraform/envs` | No: carpeta con una raíz de Terraform por ambiente (`dev`, `stage`, `prod`) |
 | `CG_TRIVY_SEVERITY` | `CRITICAL` | No: severidades que bloquean (p. ej. `HIGH,CRITICAL`) |
 
 Las IPs no están en el repositorio: si cambia un servidor, se actualiza aquí sin hacer commit.
