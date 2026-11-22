@@ -35,10 +35,18 @@ resilience4j:
         register-health-indicator: false
 
 management:
+  # Métricas para Prometheus (CG-93): /actuator/prometheus, con la etiqueta
+  # application para separar servicios e histogramas para calcular el p95.
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus
   endpoint:
     health:
       probes:

@@ -3,6 +3,7 @@ package com.circleguard.gateway.service;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import io.micrometer.core.instrument.Metrics;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -26,6 +27,10 @@ public class QrValidationService {
 
     private static final String STATUS_KEY_PREFIX = "user:status:";
 
+    // Métrica de negocio (CG-93): ingresos al campus por resultado. En Prometheus
+    // queda como circleguard_checkins_total{result="granted|denied|invalid"}.
+    static final String CHECKINS_METRIC = "circleguard.checkins";
+
     // Estados que niegan el ingreso. promotion-service escribe en Redis
     // SUSPECT, PROBABLE y CONFIRMED (CONTAGIED y POTENTIAL se mantienen por
     // compatibilidad con datos anteriores). ACTIVE y RECOVERED permiten el ingreso.
@@ -48,18 +53,27 @@ public class QrValidationService {
             
             // Modo estricto: sin estado en Redis no se puede confirmar que el usuario esté sano.
             if (status == null && strictGateEnabled) {
+                countCheckin("denied");
                 return new ValidationResult(false, "RED", "Access Denied: Status unavailable");
             }
 
             if (status != null && DENIED_STATUSES.contains(status)) {
+                countCheckin("denied");
                 return new ValidationResult(false, "RED", "Access Denied: Health Risk Detected");
             }
 
+            countCheckin("granted");
             return new ValidationResult(true, "GREEN", "Welcome to Campus");
             
         } catch (Exception e) {
+            countCheckin("invalid");
             return new ValidationResult(false, "RED", "Invalid or Expired Token");
         }
+    }
+
+    private static void countCheckin(String result) {
+        // Registro global de Micrometer: Spring Boot le agrega el de Prometheus.
+        Metrics.counter(CHECKINS_METRIC, "result", result).increment();
     }
 
     public record ValidationResult(boolean valid, String status, String message) {}

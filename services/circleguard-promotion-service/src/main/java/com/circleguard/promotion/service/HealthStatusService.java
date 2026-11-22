@@ -2,6 +2,7 @@ package com.circleguard.promotion.service;
 
 import com.circleguard.promotion.exception.FenceException;
 import com.circleguard.promotion.repository.graph.UserNodeRepository;
+import io.micrometer.core.instrument.Metrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -26,6 +27,12 @@ public class HealthStatusService {
 
     private static final String STATUS_KEY_PREFIX = "user:status:";
     private static final String TOPIC_STATUS_CHANGED = "promotion.status.changed";
+
+    // Métricas de negocio (CG-93). En Prometheus: circleguard_promotions_total{status}
+    // (cambios de estado aplicados) y circleguard_contacts_affected_total (contactos
+    // a los que se les propagó el cambio).
+    static final String PROMOTIONS_METRIC = "circleguard.promotions";
+    static final String AFFECTED_METRIC = "circleguard.contacts.affected";
 
     /**
      * Updates a user's health status and triggers recursive fencing if required.
@@ -121,6 +128,9 @@ public class HealthStatusService {
             payload.put("timestamp", System.currentTimeMillis());
 
             kafkaTemplate.send(TOPIC_STATUS_CHANGED, anonymousId, payload);
+
+            Metrics.counter(PROMOTIONS_METRIC, "status", status).increment();
+            Metrics.counter(AFFECTED_METRIC).increment(affected != null ? affected.size() : 0);
 
             // Story 5.4: Automated Room Reservation Cancellation
             checkAndBroadcastFencedCircles(anonymousId);
