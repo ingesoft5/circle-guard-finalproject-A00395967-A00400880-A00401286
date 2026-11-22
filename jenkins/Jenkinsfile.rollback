@@ -3,7 +3,12 @@
 // Job separado (Pipeline from SCM, script path: jenkins/Jenkinsfile.rollback).
 // Las imágenes son inmutables y están versionadas en Nexus, así que hacer
 // rollback = redesplegar una versión anterior que ya fue publicada. No se
-// reconstruye nada; tarda lo que tarda un 'docker compose up'.
+// reconstruye nada. En Kubernetes (CG-91) es un 'helm upgrade' con la versión
+// anterior en el namespace del ambiente, con --atomic --wait: si la versión
+// anterior no arranca, Helm deja el ambiente como estaba. Se usa el mismo
+// cgDeploy que el pipeline principal (CG_DEPLOY_TARGET elige helm o compose).
+// Se prefiere esto a 'helm rollback N': la versión pedida queda explícita y
+// el resultado es igual al de un despliegue normal.
 //
 // Limitación: Flyway solo avanza. Un rollback de la aplicación NO revierte el
 // esquema de la base de datos; por eso las migraciones deben ser compatibles
