@@ -17,6 +17,7 @@ flowchart LR
         unit --> web[Build cliente web<br/>expo export]
         web --> sonar{SonarQube<br/>quality gate}
         sonar -- OK --> it[Pruebas de integración<br/>Testcontainers]
+        it --> tiac{Trivy IaC +<br/>Terraform validate}
     end
 
     jk --> co
@@ -24,21 +25,25 @@ flowchart LR
 
     subgraph CD["CD: solo en main"]
         direction LR
-        ver[Versión semver<br/>git-cliff] --> pub[docker build + push<br/>Nexus vX.Y.Z]
-        pub --> tag[Tag vX.Y.Z +<br/>release notes]
-        tag --> ddev[Deploy DEV]
+        tfp[Terraform plan<br/>dev, stage, prod] --> ver[Versión semver<br/>git-cliff]
+        ver --> pub{docker build +<br/>Trivy + push<br/>vX.Y.Z-SNAPSHOT.N}
+        pub --> ddev[Helm DEV]
         ddev --> e2e{E2E Playwright<br/>sobre DEV}
-        e2e -- OK --> dstage[Deploy STAGE]
+        e2e -- OK --> zap{OWASP ZAP<br/>sobre DEV}
+        zap -- OK --> dstage[Helm STAGE]
         dstage --> appr{Aprobación<br/>manual input}
-        appr -- aprobado --> dprod[Deploy PROD]
+        appr -- aprobado --> prom[Promover SNAPSHOT<br/>a vX.Y.Z, mismo digest]
+        prom --> tag[Tag + release notes]
+        tag --> dprod[Helm PROD]
     end
 
-    it -- PR --> prok([Check verde en el PR<br/>se puede fusionar])
-    it -- main --> ver
-    e2e -. falla .-> stop2([Stage conserva<br/>la versión anterior])
-    appr -. rechazado / timeout .-> stop3([Prod no cambia])
+    tiac -- PR --> prok([Check verde en el PR<br/>se puede fusionar])
+    tiac -- main --> tfp
+    pub -. CRITICAL .-> stop4([Trivy bloquea:<br/>no se publica])
+    e2e & zap -. falla .-> stop2([Stage conserva<br/>la versión anterior])
+    appr -. rechazado / timeout .-> stop3([Prod no cambia<br/>y no hay tag vX.Y.Z])
 
-    stop1 & stop2 & stop3 -.-> notif[[Notificación<br/>Discord]]
+    stop1 & stop2 & stop3 & stop4 -.-> notif[[Notificación<br/>Discord]]
     dprod --> notif
 ```
 
@@ -53,25 +58,33 @@ flowchart LR
 | 5 | Build cliente web | PR y main, si cambió `mobile/` | Falla si `expo export` falla | `cgWebCheck` |
 | 6 | SonarQube + quality gate | PR y main | **Bloqueante** (`abortPipeline: true`) | `cgSonar` |
 | 7 | Pruebas de integración | PR y main | Falla si una prueba falla | `cgIntegrationTest` |
-| 8 | Versión | main | Si no hay `feat`/`fix`/`!`, termina aquí (no hay release) | `cgVersion` |
-| 9 | Empaquetar y publicar | main | | `cgDockerPublish` |
-| 10 | Tag + release notes | main | | `cgRelease` |
-| 11 | Deploy DEV | main | Falla si un servicio no queda *healthy* | `cgDeploy` |
-| 12 | E2E sobre DEV | main | **Bloqueante**: si falla, no llega a stage | `cgE2E` |
-| 13 | Deploy STAGE | main | Falla si un servicio no queda *healthy* | `cgDeploy` |
-| 14 | Aprobación PROD | main | **Manual** (`input`, 2 h de timeout, solo `CG_PROD_APPROVERS`) | `input` |
-| 15 | Deploy PROD | main | Falla si un servicio no queda *healthy* | `cgDeploy` |
+| 8 | Trivy IaC | PR y main, si hay `infra/terraform` o `deploy/helm` | **Bloqueante** con hallazgos `CRITICAL` | `cgTrivy.scanConfig` |
+| 9 | Terraform validate | PR y main, si hay Terraform | Falla si `fmt` o `validate` fallan (sin credenciales de la nube) | `cgTerraform.validate` |
+| 10 | Terraform plan | main | Plan de dev, stage y prod como artefacto (`tfplan-<env>.txt`) | `cgTerraform.plan` |
+| 11 | Terraform apply DEV | main, si el plan de dev tiene cambios | Aplica el plan guardado | `cgTerraform.apply` |
+| 12 | Versión | main | Si no hay `feat`/`fix`/`!`, no hay release | `cgVersion` |
+| 13 | Empaquetar, escanear y publicar | main | **Trivy bloqueante**: una imagen con `CRITICAL` corregible no se publica. Se publica `vX.Y.Z-SNAPSHOT.N` | `cgDockerPublish`, `cgTrivy` |
+| 14 | Deploy DEV | main | `helm upgrade --atomic --wait`: si un pod no queda listo, Helm revierte | `cgDeploy` |
+| 15 | E2E sobre DEV | main | **Bloqueante**: si falla, no llega a stage | `cgE2E` |
+| 16 | OWASP ZAP sobre DEV | main | **Bloqueante** con alertas `FAIL` de `tests/security-zap/zap-baseline.conf` | `cgZap` |
+| 17 | Terraform apply STAGE | main, si el plan de stage tiene cambios | Aplica el plan guardado | `cgTerraform.apply` |
+| 18 | Deploy STAGE | main | Igual que dev, misma SNAPSHOT | `cgDeploy` |
+| 19 | Aprobación PROD | main, si hay release o cambios de Terraform en prod | **Manual** (`input`, 2 h de timeout, solo `CG_PROD_APPROVERS`) | `input` |
+| 20 | Terraform apply PROD | main, si el plan de prod tiene cambios | Aplica exactamente el plan aprobado | `cgTerraform.apply` |
+| 21 | Promover a release | main | Copia la SNAPSHOT como `vX.Y.Z` y **compara digests** | `cgPromote` |
+| 22 | Tag + release notes | main | Solo después de aprobar y promover | `cgRelease` |
+| 23 | Deploy PROD | main | Igual que dev, versión `vX.Y.Z` | `cgDeploy` |
 | — | Notificación | siempre al final | Fallo, inestable, abortado o release a prod | `cgNotify` |
 
 ## Ambientes
 
 | Ambiente | Cómo llega una versión |
 |---|---|
-| dev | Automático en cada build de `main` que genera una versión nueva (el build de `main` se lanza a mano: Nexus no permite republicar una versión) |
-| stage | Automático, si pasan los E2E sobre dev |
-| prod | Solo con aprobación manual en Jenkins |
+| dev (`circleguard-dev`) | Automático en cada build de `main` que genera una versión nueva, como `vX.Y.Z-SNAPSHOT.N` (el build de `main` se lanza a mano) |
+| stage (`circleguard-stage`) | Automático, si pasan los E2E y ZAP sobre dev; misma SNAPSHOT |
+| prod (`circleguard-prod`) | Solo con aprobación manual: la SNAPSHOT se promueve a `vX.Y.Z` y se despliega |
 
-Los tres ambientes reciben **la misma imagen con la misma versión** (*build once, deploy many*): lo que se probó en dev y stage es exactamente lo que llega a prod. Entre ambientes solo cambia la configuración (`.env` de cada servidor).
+Los tres ambientes reciben **la misma imagen** (*build once, deploy many*): la SNAPSHOT que se probó en dev y stage se re-etiqueta como `vX.Y.Z` sin reconstruirla, y el pipeline verifica que el digest sea idéntico. Entre ambientes solo cambia la configuración (`values-<env>.yaml` del chart). El modo de despliegue lo elige la variable `CG_DEPLOY_TARGET`: `helm` (Kubernetes, por defecto) o `compose` (SSH a las VMs de la Parte 1, como respaldo).
 
 ## Decisiones de diseño
 
@@ -91,10 +104,14 @@ Cómo decide `cgChangedServices` qué construir:
 
 **Sin cambios publicables no hay release.** Un merge con solo `docs`, `chore`, `ci` o `test` pasa la CI, pero no genera versión, imágenes ni despliegue.
 
-**El tag se crea después de publicar.** Si la publicación falla, no queda un tag que apunte a imágenes inexistentes.
+**SNAPSHOT primero, release solo con aprobación (CG-116).** dev y stage prueban `vX.Y.Z-SNAPSHOT.N`. El release `vX.Y.Z`, el tag y el GitHub Release se crean solo después de aprobar producción y promover la imagen. Si alguien rechaza, no queda ningún `vX.Y.Z`: la versión sigue disponible para el siguiente intento.
+
+**Seguridad antes de publicar (CG-90, CG-92).** Trivy escanea cada imagen antes del push y la infraestructura como código en cada PR; bloquea con `CRITICAL` que tenga arreglo. Las excepciones aceptadas van en `.trivyignore` con motivo, responsable y fecha de revisión. ZAP baseline revisa el web de dev después de los E2E; solo las reglas `FAIL` bloquean.
+
+**Terraform: lo que se aprueba es lo que se aplica (CG-89).** El plan se guarda y `apply` usa ese archivo, no vuelve a planear. El plan de prod se hace antes de la aprobación para que quien aprueba lo vea en los artefactos.
 
 **La aprobación no ocupa un ejecutor.** El pipeline no tiene agente global (`agent none`) y la etapa de aprobación no pide agente, así que mientras una persona decide ningún ejecutor queda bloqueado.
 
-**Rollback = redesplegar una versión anterior** con el job [`jenkins/Jenkinsfile.rollback`](../../jenkins/Jenkinsfile.rollback), sin reconstruir nada. Flyway solo avanza: el rollback no revierte el esquema de la base de datos, por eso las migraciones deben ser compatibles hacia atrás (*expand/contract*).
+**Rollback = redesplegar un release anterior** con el job [`jenkins/Jenkinsfile.rollback`](../../jenkins/Jenkinsfile.rollback), sin reconstruir nada. En Kubernetes es un `helm upgrade --atomic` con la versión anterior (CG-91). Flyway solo avanza: el rollback no revierte el esquema de la base de datos, por eso las migraciones deben ser compatibles hacia atrás (*expand/contract*).
 
 Versión UML (diagrama de actividad): [`uml/pipeline-actividad.png`](uml/pipeline-actividad.png) y [`uml/rollback-actividad.png`](uml/rollback-actividad.png).
