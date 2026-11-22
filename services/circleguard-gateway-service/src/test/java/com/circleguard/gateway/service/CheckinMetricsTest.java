@@ -59,6 +59,17 @@ class CheckinMetricsTest {
         assertThat(count("invalid")).isEqualTo(1.0);
     }
 
+    @Test
+    void strictGateDenialWithoutStatus_countsAsDenied() {
+        ReflectionTestUtils.setField(service, "strictGateEnabled", true);
+        String unknown = UUID.randomUUID().toString();
+        double before = count("denied");
+
+        service.validateToken(token(unknown));
+
+        assertThat(count("denied")).isEqualTo(before + 1.0);
+    }
+
     private double count(String result) {
         return meters.get(QrValidationService.CHECKINS_METRIC).tag("result", result).counter().count();
     }

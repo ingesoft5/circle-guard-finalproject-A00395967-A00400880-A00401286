@@ -53,6 +53,7 @@ public class QrValidationService {
             
             // Modo estricto: sin estado en Redis no se puede confirmar que el usuario esté sano.
             if (status == null && strictGateEnabled) {
+                countCheckin("denied");
                 return new ValidationResult(false, "RED", "Access Denied: Status unavailable");
             }
 
