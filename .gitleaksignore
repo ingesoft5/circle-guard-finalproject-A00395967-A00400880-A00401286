@@ -1,0 +1,22 @@
+# Falsos positivos revisados de gitleaks (CG-87). Ninguno es una credencial real:
+# - sonar-setup.sh: admin:admin es la contraseña DE FÁBRICA de SonarQube; el
+#   script la cambia en el primer arranque por SONAR_ADMIN_PASSWORD (generada).
+# - identity application.yml (main y test) y las pruebas de identity/gateway:
+#   claves fijas de prueba ("test-secret-32-chars-long-123456" en hex,
+#   "integration-test-qr-secret-..."). En dev/stage/prod siempre se reemplazan
+#   por VAULT_SECRET/QR_SECRET del Secret de Kubernetes (Key Vault).
+# - bin/: salida de compilación commiteada por error en el historial (mismo valor).
+# Revisión: docs/infra/secretos.md. Cualquier hallazgo nuevo debe corregirse, no agregarse aquí.
+13de42aadb2fc99740a84386ab3a16e99e873e1f:services/circleguard-identity-service/bin/main/application.yml:generic-api-key:20
+13de42aadb2fc99740a84386ab3a16e99e873e1f:services/circleguard-identity-service/bin/test/application.yml:generic-api-key:18
+13de42aadb2fc99740a84386ab3a16e99e873e1f:services/circleguard-identity-service/src/main/resources/application.yml:generic-api-key:20
+13de42aadb2fc99740a84386ab3a16e99e873e1f:services/circleguard-identity-service/src/test/java/com/circleguard/identity/util/IdentityEncryptionConverterTest.java:generic-api-key:10
+13de42aadb2fc99740a84386ab3a16e99e873e1f:services/circleguard-identity-service/src/test/resources/application.yml:generic-api-key:18
+cc0a1d34c78d7ecb175e6674c1274920dfc67f56:services/circleguard-gateway-service/src/test/java/com/circleguard/gateway/integration/QrAuthGatewayIntegrationTest.java:generic-api-key:48
+e318e9e9ea6b1db5fa928002f204109bc6eee57b:infra/bootstrap/tools/sonar-setup.sh:curl-auth-user:36
+fff9efc02f047e693d0319269244f7b76232c827:infra/bootstrap/tools/sonar-setup.sh:curl-auth-user:36
+infra/bootstrap/tools/sonar-setup.sh:curl-auth-user:37
+services/circleguard-gateway-service/src/test/java/com/circleguard/gateway/integration/QrAuthGatewayIntegrationTest.java:generic-api-key:48
+services/circleguard-identity-service/src/main/resources/application.yml:generic-api-key:20
+services/circleguard-identity-service/src/test/java/com/circleguard/identity/util/IdentityEncryptionConverterTest.java:generic-api-key:10
+services/circleguard-identity-service/src/test/resources/application.yml:generic-api-key:18
