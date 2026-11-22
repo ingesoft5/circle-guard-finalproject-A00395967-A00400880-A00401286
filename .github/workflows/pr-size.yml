@@ -1,0 +1,126 @@
+# CG-114 · Límite de tamaño de PR
+#
+# Suma additions + deletions de los archivos del PR (sin archivos generados),
+# pone una etiqueta size/S|M|L|XL y falla si el total pasa de 400 líneas.
+# Excepción: etiqueta `size/exception` + sección `## Justificación de tamaño`
+# con texto en la descripción del PR. Regla completa: docs/agil/branching.md §7.
+#
+# El nombre del job (`pr-size`) es el check obligatorio del ruleset
+# "Proteger main": no lo cambies sin actualizar el ruleset.
+name: PR size
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled, edited]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: pr-size-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  pr-size:
+    name: pr-size
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      PR: ${{ github.event.pull_request.number }}
+      LIMIT: 400
+      # Archivos generados que no cuentan (expresión regular sobre la ruta):
+      # **/package-lock.json, **/yarn.lock, gradle/wrapper/**, **/*.lock,
+      # observability/dashboards/**/*.json, *.png, *.jpg, *.svg, docs/**/evidencia/**
+      EXCLUDE: '(^|/)package-lock\.json$|(^|/)yarn\.lock$|^gradle/wrapper/|\.lock$|^observability/dashboards/.*\.json$|\.(png|jpg|svg)$|^docs/(.*/)?evidencia/'
+    steps:
+      - name: Count changed lines
+        id: count
+        run: |
+          set -euo pipefail
+          # La API lista como máximo 3000 archivos por PR; un PR así ya es XL.
+          gh api "repos/$REPO/pulls/$PR/files?per_page=100" --paginate > files.json
+          jq -r --arg re "$EXCLUDE" '.[]
+            | [ (if (.filename | test($re)) then "excluded" else "counted" end),
+                (.additions + .deletions), .filename ] | @tsv' files.json > files.tsv
+
+          total=$(awk -F'\t' '$1=="counted"{s+=$2} END{print s+0}' files.tsv)
+          excluded=$(awk -F'\t' '$1=="excluded"{s+=$2} END{print s+0}' files.tsv)
+
+          if   (( total < 100 ));    then size=S
+          elif (( total < 250 ));    then size=M
+          elif (( total <= LIMIT )); then size=L
+          else                            size=XL
+          fi
+
+          echo "total=$total" >> "$GITHUB_OUTPUT"
+          echo "size=$size"   >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### Tamaño del PR: size/$size"
+            echo
+            echo "| Concepto | Líneas |"
+            echo "|---|---:|"
+            echo "| Contadas (límite $LIMIT) | $total |"
+            echo "| Excluidas (archivos generados) | $excluded |"
+            if grep -q '^excluded' files.tsv; then
+              echo
+              echo "Archivos excluidos:"
+              awk -F'\t' '$1=="excluded"{printf "- `%s` (%s)\n", $3, $2}' files.tsv
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Apply size label
+        continue-on-error: true
+        env:
+          SIZE: ${{ steps.count.outputs.size }}
+        run: |
+          set -euo pipefail
+          # Se leen etiquetas y descripción actuales (no las del evento) por si
+          # el job se re-ejecuta más tarde desde la interfaz.
+          gh api "repos/$REPO/pulls/$PR" > pr.json
+          jq -r '.labels[].name' pr.json > labels.txt
+
+          for s in S M L XL; do
+            if [[ "$s" != "$SIZE" ]] && grep -qx "size/$s" labels.txt; then
+              gh api -X DELETE "repos/$REPO/issues/$PR/labels/size%2F$s" > /dev/null
+            fi
+          done
+          # Si la etiqueta no existe en el repo, GitHub la crea al asignarla.
+          if ! grep -qx "size/$SIZE" labels.txt; then
+            gh api "repos/$REPO/issues/$PR/labels" -f "labels[]=size/$SIZE" > /dev/null
+          fi
+
+      - name: Enforce limit
+        env:
+          TOTAL: ${{ steps.count.outputs.total }}
+        run: |
+          set -euo pipefail
+          if (( TOTAL <= LIMIT )); then
+            echo "OK: $TOTAL líneas (límite $LIMIT)."
+            exit 0
+          fi
+
+          has_label=false
+          grep -qx 'size/exception' labels.txt && has_label=true
+
+          # Texto bajo "## Justificación de tamaño" hasta el siguiente "## ",
+          # sin comentarios HTML (los de la plantilla no cuentan) ni \r.
+          jq -r '.body // ""' pr.json > body.md
+          justification=$(perl -0777 -ne '
+            s/\r//g; s/<!--.*?-->//gs;
+            print $1 if /^##[ \t]+Justificación de tamaño[ \t]*\n(.*?)(?=^##[ \t]|\z)/ms
+          ' body.md | tr -d '[:space:]')
+
+          if $has_label && [[ -n "$justification" ]]; then
+            echo "::warning::PR de $TOTAL líneas aceptado por excepción (size/exception + justificación). El revisor debe validar la justificación."
+            exit 0
+          fi
+
+          echo "::error::El PR tiene $TOTAL líneas cambiadas y el límite es $LIMIT (sin archivos generados). Divídelo (ver docs/agil/branching.md §7) o, si no se puede, agrega la etiqueta size/exception y llena la sección '## Justificación de tamaño'."
+          [[ "$has_label" == true ]] || echo "::error::Falta la etiqueta size/exception."
+          [[ -n "$justification" ]]  || echo "::error::Falta texto en la sección '## Justificación de tamaño'."
+          exit 1
