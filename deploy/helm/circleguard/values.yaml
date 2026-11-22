@@ -78,6 +78,10 @@ services:
       QR_SECRET: qr-secret
     datasourceUser: true
     waitFor: ["postgres:5432", "openldap:389"]
+    # Cuello de botella del login concurrente en la prueba de estrés (CG-88,
+    # tests/performance/results/ANALISIS.md). No guarda estado en memoria: JWT y
+    # QR se firman con los secretos compartidos, así que escala sin afinidad.
+    hpa: true
 
   identity:
     port: 8083
