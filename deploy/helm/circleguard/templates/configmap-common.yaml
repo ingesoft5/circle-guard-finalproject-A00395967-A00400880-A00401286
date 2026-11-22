@@ -1,0 +1,12 @@
+# Valores no secretos comunes a todos los servicios (CG-82).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: circleguard-common
+  labels:
+    {{- include "cg.labels" (dict "root" . "name" "circleguard-common" "component" "config") | nindent 4 }}
+data:
+  CG_ENV: {{ required "global.env es obligatorio (dev, stage o prod)" .Values.global.env | quote }}
+  {{- range $k, $v := .Values.common }}
+  {{ $k }}: {{ $v | quote }}
+  {{- end }}

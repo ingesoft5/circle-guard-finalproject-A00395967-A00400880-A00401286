@@ -1,0 +1,17 @@
+# Ambiente dev: solo lo que cambia respecto a values.yaml (tamaños y nombres).
+# global.imageTag y global.registry los pasa el pipeline con --set.
+global:
+  env: dev
+
+# Host público sobre la IP del clúster (sslip.io resuelve <x>.40-64-120-3.sslip.io a 40.64.120.3).
+# Sale de: terraform -chdir=infra/terraform/envs/shared output web_urls
+ingress:
+  host: dev.40-64-120-3.sslip.io
+  # Certificado de Let's Encrypt con cert-manager (infra/k8s/tls/install.sh).
+  tls:
+    enabled: true
+
+replicas: 1
+hpa:
+  minReplicas: 1
+  maxReplicas: 2

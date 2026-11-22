@@ -1,0 +1,8 @@
+apiVersion: v2
+name: circleguard
+description: CircleGuard en Kubernetes (k3s) - 8 microservicios, cliente web y middleware (CG-81).
+type: application
+# Versión del chart. La de la app (las imágenes) llega siempre por global.imageTag.
+version: 0.1.0
+appVersion: "1.0.x"
+kubeVersion: ">=1.30.0-0"
