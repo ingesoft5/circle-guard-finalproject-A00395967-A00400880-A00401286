@@ -63,8 +63,8 @@ spec:
         {{- include "cg.labels" $labels | nindent 8 }}
         app.kubernetes.io/version: {{ $root.Values.global.imageTag | quote }}
       annotations:
-        # Reinicia los pods si cambia su configuración.
-        checksum/config: {{ toJson $cfg | sha256sum | trunc 16 }}
+        # Reinicia los pods si cambia su configuración o la común (circleguard-common).
+        checksum/config: {{ toJson (list $cfg $root.Values.common) | sha256sum | trunc 16 }}
     spec:
       imagePullSecrets:
         - name: {{ $root.Values.global.imagePullSecret }}
