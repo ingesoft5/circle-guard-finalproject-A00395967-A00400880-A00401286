@@ -92,3 +92,4 @@ CircleGuard implementa el principio de **Artefacto Inmutable**: una vez compilad
    - Usuario que aprobó el pase a producción (`PROD_APPROVER`).
    - Archivo de notas de lanzamiento (`RELEASE_NOTES.md`).
 3. **Registro de Notificaciones**: Al completarse el despliegue en producción, se despacha una notificación automática indicando: versión desplegada, componentes actualizados y responsable de la aprobación.
+4. **Excepciones de seguridad**: toda excepción de seguridad (por ejemplo, una vulnerabilidad aceptada en `.trivyignore`) es un cambio normal que requiere aprobación en el PR, y debe quedar registrada en [`riesgos-aceptados.md`](riesgos-aceptados.md).
