@@ -1,0 +1,4 @@
+Method,Name,Error,Occurrences
+GET,auth: qr/generate,HTTPError('504 Server Error: Gateway Timeout for url: auth: qr/generate'),55
+POST,auth: login,CatchResponseError('login 504'),57
+POST,auth: login,CatchResponseError('login 401'),59
