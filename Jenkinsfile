@@ -2,15 +2,22 @@
 //
 // - En un PR o en cualquier rama: solo CI (validar). Es el check obligatorio
 //   que bloquea el merge en GitHub.
-// - En main: CI + CD (versionar, publicar, desplegar dev -> E2E -> stage ->
-//   aprobación manual -> prod).
+// - En main: CI + CD. Se publica una SNAPSHOT (vX.Y.Z-SNAPSHOT.N) escaneada
+//   con Trivy, que recorre dev -> E2E -> stage. Solo si una persona aprueba,
+//   esa MISMA imagen se promueve a vX.Y.Z (sin reconstruir), se crean el tag y
+//   el release y se despliega a prod (CG-116).
 //
 // Las etapas son llamadas a la Shared Library (jenkins/vars, librería
 // 'circleguard-lib'); este archivo solo describe el flujo.
 // La infraestructura (IPs, registro) se lee de las variables globales de
 // Jenkins: ver jenkins/README.md.
 
-@Library('circleguard-lib') _
+// La librería se carga de la MISMA rama que se construye: en un PR, su rama de
+// origen; en main, main. Así un PR que agrega o cambia un paso de jenkins/vars
+// se prueba con su propia versión (antes fallaba con "No such property"
+// porque la librería venía siempre de main). Solo se descubren PRs del propio
+// repositorio (no forks), así que el código cargado es del equipo.
+library "circleguard-lib@${env.CHANGE_BRANCH ?: env.BRANCH_NAME}"
 
 pipeline {
     // Sin agente global: cada etapa pide el suyo. Así la espera de la
@@ -80,6 +87,12 @@ pipeline {
                     steps { cgIntegrationTest() }
                 }
 
+                // Trivy sobre la infraestructura como código (CG-90). Bloquea en
+                // cualquier rama: un PR con IaC insegura no se puede fusionar.
+                stage('Trivy IaC') {
+                    steps { script { cgTrivy.scanConfig(['infra/terraform', 'deploy/helm']) } }
+                }
+
                 // ----------------------- Solo en main (CD) -----------------------
 
                 stage('Versión') {
@@ -88,7 +101,9 @@ pipeline {
                         script {
                             env.VERSION = cgVersion()
                             if (env.VERSION) {
-                                currentBuild.displayName = "#${env.BUILD_NUMBER} ${env.VERSION}"
+                                // Candidata a release: lo que se prueba en dev y stage.
+                                env.SNAPSHOT = cgConfig.snapshotOf(env.VERSION, env.BUILD_NUMBER)
+                                currentBuild.displayName = "#${env.BUILD_NUMBER} ${env.SNAPSHOT}"
                             } else {
                                 echo 'Sin cambios publicables: este build de main termina después de CI.'
                             }
@@ -96,24 +111,19 @@ pipeline {
                     }
                 }
 
-                stage('Empaquetar y publicar') {
+                stage('Empaquetar, escanear y publicar') {
                     when { expression { isRelease() } }
                     steps {
-                        // En main se publican TODAS las imágenes con la nueva versión:
-                        // una versión = un release completo del sistema, y el compose de
-                        // cada ambiente usa la misma VERSION para todos los servicios.
-                        script { cgDockerPublish(cgConfig.allComponents(), env.VERSION) }
+                        // En main se publican TODAS las imágenes con la SNAPSHOT: una
+                        // versión = un release completo del sistema. Trivy escanea cada
+                        // una antes del push (CG-90).
+                        script { cgDockerPublish(cgConfig.allComponents(), env.SNAPSHOT) }
                     }
-                }
-
-                stage('Tag + release notes') {
-                    when { expression { isRelease() } }
-                    steps { cgRelease(env.VERSION) }
                 }
 
                 stage('Deploy DEV') {
                     when { expression { isRelease() } }
-                    steps { cgDeploy(env: 'dev', version: env.VERSION) }
+                    steps { cgDeploy(env: 'dev', version: env.SNAPSHOT) }
                 }
 
                 stage('E2E sobre DEV') {
@@ -123,8 +133,8 @@ pipeline {
 
                 stage('Deploy STAGE') {
                     when { expression { isRelease() } }
-                    // Misma imagen y misma versión que en dev (build once, deploy many).
-                    steps { cgDeploy(env: 'stage', version: env.VERSION) }
+                    // Misma imagen y misma SNAPSHOT que en dev (build once, deploy many).
+                    steps { cgDeploy(env: 'stage', version: env.SNAPSHOT) }
                 }
             }
             post {
@@ -139,8 +149,8 @@ pipeline {
                 timeout(time: 2, unit: 'HOURS') {
                     script {
                         env.PROD_APPROVER = input(
-                            message: "¿Desplegar ${env.VERSION} a PRODUCCIÓN?",
-                            ok: 'Desplegar',
+                            message: "¿Promover ${env.SNAPSHOT} como ${env.VERSION} y desplegar a PRODUCCIÓN?",
+                            ok: 'Promover y desplegar',
                             submitter: cgConfig.prodApprovers(),
                             submitterParameter: 'APPROVER'
                         )
@@ -150,7 +160,7 @@ pipeline {
             }
         }
 
-        stage('Deploy PROD') {
+        stage('Producción') {
             // beforeAgent: evaluar el when ANTES de pedir un ejecutor. Sin esto,
             // cada PR esperaba un ejecutor libre solo para saltarse esta etapa.
             when {
@@ -158,12 +168,33 @@ pipeline {
                 expression { isRelease() }
             }
             agent any
-            steps {
-                cgDeploy(env: 'prod', version: env.VERSION)
-                script {
-                    env.PROD_DEPLOYED = 'true'
-                    env.NOTIFY_DETAIL = "**Aprobado por:** ${env.PROD_APPROVER}"
+            stages {
+                // CG-116: la SNAPSHOT aprobada pasa a ser el release, mismo digest.
+                stage('Promover a release') {
+                    steps {
+                        checkout scm
+                        cgPromote(release: env.VERSION, snapshot: env.SNAPSHOT)
+                        script { currentBuild.displayName = "#${env.BUILD_NUMBER} ${env.VERSION}" }
+                    }
                 }
+
+                // El tag y el release se crean solo después de aprobar y promover.
+                stage('Tag + release notes') {
+                    steps { cgRelease(env.VERSION) }
+                }
+
+                stage('Deploy PROD') {
+                    steps {
+                        cgDeploy(env: 'prod', version: env.VERSION)
+                        script {
+                            env.PROD_DEPLOYED = 'true'
+                            env.NOTIFY_DETAIL = "**Aprobado por:** ${env.PROD_APPROVER}"
+                        }
+                    }
+                }
+            }
+            post {
+                always { cleanWs() }
             }
         }
     }

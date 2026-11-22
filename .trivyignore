@@ -1,0 +1,21 @@
+# Excepciones aceptadas del escaneo de Trivy (CG-90).
+#
+# Cada línea es un ID de vulnerabilidad (CVE-...) o de regla de IaC (AVD-...)
+# que el pipeline deja de bloquear. Solo se agrega con:
+#   1. el motivo (por qué no aplica o por qué no se puede corregir ya),
+#   2. quién lo aceptó y la fecha,
+#   3. cuándo se vuelve a revisar.
+# Una excepción sin esos datos no se aprueba en el PR.
+#
+# Ejemplo:
+# CVE-2024-00000  # no aplica: la librería no se usa en tiempo de ejecución. Simón, 2026-11-20. Revisar: 2026-12-20
+
+# --- Riesgos aceptados (propuestos por Simón el 2026-11-20; pendientes de aprobación en el PR) ---
+# Sin arreglo en la línea de Spring Boot 3.2 que usa el proyecto: Trivy reporta
+# la corrección solo en Spring Framework 7.0.9 y Spring Security 6.5.9/7.0.4,
+# que exigen migrar a Spring Boot 3.5 o 4 (cambio mayor, fuera del Sprint 2).
+# El resto de CVE CRITICAL de Tomcat, Netty, FreeMarker y Spring Security sí se
+# corrigió subiendo versiones compatibles (build.gradle.kts). Revisar: 2026-12-20.
+CVE-2026-47884  # spring-webmvc 6.1.5: arreglo solo en 7.0.9
+CVE-2026-47892  # spring-webflux 6.1.5: arreglo solo en 7.0.9
+CVE-2026-22732  # spring-security-web 6.2.x: arreglo solo en 6.5.9 y 7.0.4

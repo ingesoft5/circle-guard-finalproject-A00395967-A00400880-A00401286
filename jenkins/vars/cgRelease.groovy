@@ -1,7 +1,9 @@
 // Tag de Git + release notes (CG-59, release notes de E1.7).
 //
-// Se ejecuta DESPUÉS de publicar las imágenes: si la publicación falla, no
-// queda un tag que apunte a una versión que no existe en el registro.
+// Se ejecuta DESPUÉS de promover las imágenes a release (cgPromote, CG-116),
+// es decir, solo cuando producción fue aprobada: si se rechaza, no queda
+// ningún tag vX.Y.Z ni release, y tampoco un tag que apunte a imágenes que no
+// existen en el registro.
 //
 // 1. Crea el tag anotado vX.Y.Z y lo empuja a GitHub.
 // 2. Genera RELEASE_NOTES.md con git-cliff (commits desde el tag anterior).
@@ -11,7 +13,10 @@
 // tags (así se evita un bucle).
 
 void call(String version) {
-    cgConfig.requireSemver(version)
+    cgConfig.requireRelease(version)
+    // El workspace de producción es un checkout nuevo: sin los tags anteriores,
+    // git-cliff no sabría desde dónde generar las notas.
+    cgVersion.fetchTags()
 
     withCredentials([usernamePassword(credentialsId: 'github-pat',
                                       usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
