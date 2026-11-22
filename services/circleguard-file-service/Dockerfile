@@ -58,6 +58,14 @@ RUN addgroup -g 10001 -S app && adduser -u 10001 -S -G app -H -h /app app
 WORKDIR /app
 COPY --from=build --chown=10001:10001 /workspace/app.jar /app/app.jar
 
+# FileStorageService crea "uploads" relativo al directorio de trabajo (/app).
+# Como el proceso corre como UID 10001 y /app es de root, se crea /app/uploads
+# con dueño 10001:10001 antes de USER para que pueda escribir.
+# En Kubernetes se monta un volumen (PVC) en /app/uploads para que los archivos
+# persistan; al montarlo, los permisos del volumen reemplazan a los de este
+# directorio (allí se resuelven con fsGroup/securityContext).
+RUN mkdir -p /app/uploads && chown 10001:10001 /app/uploads
+
 USER 10001
 EXPOSE 8085
 ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "/app/app.jar"]
