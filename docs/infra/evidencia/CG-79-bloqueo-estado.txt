@@ -1,0 +1,43 @@
+# CG-79 · Bloqueo del estado: dos terraform plan simultáneos sobre el mismo blob
+# Plan A arranca a las 20:54:25 (un data source tarda 40 s); plan B arranca 12 s después.
+# Resultado: B falla con 'state blob is already locked' y A termina normal y libera el lease.
+
+===== PLAN A
+20:54:25
+Acquiring state lock. This may take a few moments...
+data.external.plan_lento: Reading...
+data.external.plan_lento: Still reading... [00m10s elapsed]
+data.external.plan_lento: Still reading... [00m20s elapsed]
+data.external.plan_lento: Still reading... [00m30s elapsed]
+data.external.plan_lento: Still reading... [00m40s elapsed]
+data.external.plan_lento: Read complete after 40s [id=-]
+
+No changes. Your infrastructure matches the configuration.
+
+Terraform has compared your real infrastructure against your configuration
+and found no differences, so no changes are needed.
+Releasing state lock. This may take a few moments...
+20:55:12
+
+===== PLAN B
+20:54:37
+Acquiring state lock. This may take a few moments...
+
+Error: Error acquiring the state lock
+
+Error message: state blob is already locked
+Lock Info:
+  ID:        733211f9-63a0-1bc2-4756-9ec5e023b6e6
+  Path:      tfstate/circleguard/lock-demo.tfstate
+  Operation: OperationTypePlan
+  Who:       dariomarquinez@192.168.1.6
+  Version:   1.16.7
+  Created:   2026-11-22 01:54:27.158959 +0000 UTC
+  Info:      
+
+
+Terraform acquires a state lock to protect the state from being written
+by multiple users at the same time. Please resolve the issue above and try
+again. For most commands, you can disable locking with the "-lock=false"
+flag, but this is not recommended.
+20:54:40

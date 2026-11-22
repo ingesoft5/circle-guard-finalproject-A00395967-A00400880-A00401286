@@ -30,7 +30,13 @@ RUN npx expo export --platform web --output-dir dist
 
 # Etapa 2: solo nginx y los archivos estáticos; ni Node ni node_modules llegan a producción.
 # nginx-unprivileged corre con un usuario sin privilegios y escucha en 8080.
-FROM nginxinc/nginx-unprivileged:1.27-alpine AS runtime
+FROM nginxinc/nginx-unprivileged:1.29-alpine AS runtime
+
+# La base trae brotli-libs 1.2.0-r0 con CVE CRITICAL (CVE-2026-111497); se instala la versión corregida.
+# Quitar estas líneas cuando la imagen base incluya brotli-libs 1.2.1-r0 o superior.
+USER root
+RUN apk add --no-cache --upgrade "brotli-libs>=1.2.1-r0"
+USER 101
 
 ARG VERSION=dev
 

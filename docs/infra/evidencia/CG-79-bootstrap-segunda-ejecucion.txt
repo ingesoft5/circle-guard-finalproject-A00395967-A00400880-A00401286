@@ -1,0 +1,11 @@
+[20:52:55] Suscripción: Azure subscription 1 · cuenta de estado: cgtfstate6397764e (westus2)
+[20:52:56] ✓ Grupo cg-tfstate-rg ya existe
+[20:52:59] ✓ Storage Account cgtfstate6397764e ya existe (configuración al día)
+[20:53:01] ✓ Versionado y borrado suave (14 días) activos
+[20:53:08] ✓ Permiso de datos ya asignado a 7ba21a62-1d4b-471a-b4ff-39bc3f679845
+[20:53:09] ✓ Contenedor tfstate ya existe
+
+Backend listo. Cada ambiente lo usa desde infra/terraform/envs/<env>/backend.tf:
+  resource_group_name  = "cg-tfstate-rg"
+  storage_account_name = "cgtfstate6397764e"
+  container_name       = "tfstate"

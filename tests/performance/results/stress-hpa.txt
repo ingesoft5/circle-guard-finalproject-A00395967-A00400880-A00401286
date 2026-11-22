@@ -1,0 +1,84 @@
+== 23:03:41
+form-service        Deployment/form-service        cpu: 6%/70%    1     2     1     72m
+gateway-service     Deployment/gateway-service     cpu: 4%/70%    1     2     1     72m
+promotion-service   Deployment/promotion-service   cpu: 12%/70%   1     2     1     72m
+== 23:03:56
+form-service        Deployment/form-service        cpu: 2%/70%    1     2     1     73m
+gateway-service     Deployment/gateway-service     cpu: 6%/70%    1     2     1     73m
+promotion-service   Deployment/promotion-service   cpu: 10%/70%   1     2     1     73m
+== 23:04:12
+form-service        Deployment/form-service        cpu: 8%/70%    1     2     1     73m
+gateway-service     Deployment/gateway-service     cpu: 6%/70%    1     2     1     73m
+promotion-service   Deployment/promotion-service   cpu: 14%/70%   1     2     1     73m
+== 23:04:28
+form-service        Deployment/form-service        cpu: 44%/70%   1     2     1     73m
+gateway-service     Deployment/gateway-service     cpu: 50%/70%   1     2     1     73m
+promotion-service   Deployment/promotion-service   cpu: 14%/70%   1     2     1     73m
+== 23:04:44
+form-service        Deployment/form-service        cpu: 184%/70%   1     2     1     73m
+gateway-service     Deployment/gateway-service     cpu: 96%/70%    1     2     1     73m
+promotion-service   Deployment/promotion-service   cpu: 22%/70%    1     2     1     73m
+== 23:04:59
+form-service        Deployment/form-service        cpu: 122%/70%   1     2     1     74m
+gateway-service     Deployment/gateway-service     cpu: 86%/70%    1     2     1     74m
+promotion-service   Deployment/promotion-service   cpu: 26%/70%    1     2     1     74m
+== 23:05:15
+form-service        Deployment/form-service        cpu: 50%/70%   1     2     1     74m
+gateway-service     Deployment/gateway-service     cpu: 82%/70%   1     2     1     74m
+promotion-service   Deployment/promotion-service   cpu: 26%/70%   1     2     1     74m
+== 23:05:31
+form-service        Deployment/form-service        cpu: 54%/70%   1     2     1     74m
+gateway-service     Deployment/gateway-service     cpu: 80%/70%   1     2     1     74m
+promotion-service   Deployment/promotion-service   cpu: 24%/70%   1     2     1     74m
+== 23:05:47
+form-service        Deployment/form-service        cpu: 128%/70%   1     2     1     74m
+gateway-service     Deployment/gateway-service     cpu: 112%/70%   1     2     2     74m
+promotion-service   Deployment/promotion-service   cpu: 24%/70%    1     2     1     74m
+== 23:06:03
+form-service        Deployment/form-service        cpu: 82%/70%    1     2     1     75m
+gateway-service     Deployment/gateway-service     cpu: 182%/70%   1     2     2     75m
+promotion-service   Deployment/promotion-service   cpu: 24%/70%    1     2     1     75m
+== 23:06:19
+form-service        Deployment/form-service        cpu: 106%/70%   1     2     1     75m
+gateway-service     Deployment/gateway-service     cpu: 154%/70%   1     2     2     75m
+promotion-service   Deployment/promotion-service   cpu: 30%/70%    1     2     1     75m
+== 23:06:34
+form-service        Deployment/form-service        cpu: 140%/70%   1     2     1     75m
+gateway-service     Deployment/gateway-service     cpu: 339%/70%   1     2     2     75m
+promotion-service   Deployment/promotion-service   cpu: 34%/70%    1     2     1     75m
+== 23:06:50
+form-service        Deployment/form-service        cpu: 90%/70%    1     2     2     76m
+gateway-service     Deployment/gateway-service     cpu: 335%/70%   1     2     2     76m
+promotion-service   Deployment/promotion-service   cpu: 30%/70%    1     2     1     76m
+== 23:07:06
+form-service        Deployment/form-service        cpu: 74%/70%    1     2     2     76m
+gateway-service     Deployment/gateway-service     cpu: 258%/70%   1     2     2     76m
+promotion-service   Deployment/promotion-service   cpu: 36%/70%    1     2     1     76m
+== 23:07:22
+form-service        Deployment/form-service        cpu: 80%/70%    1     2     2     76m
+gateway-service     Deployment/gateway-service     cpu: 238%/70%   1     2     2     76m
+promotion-service   Deployment/promotion-service   cpu: 28%/70%    1     2     1     76m
+== 23:07:37
+form-service        Deployment/form-service        cpu: 243%/70%   1     2     2     76m
+gateway-service     Deployment/gateway-service     cpu: 224%/70%   1     2     2     76m
+promotion-service   Deployment/promotion-service   cpu: 34%/70%    1     2     1     76m
+== 23:07:53
+form-service        Deployment/form-service        cpu: 148%/70%   1     2     2     77m
+gateway-service     Deployment/gateway-service     cpu: 317%/70%   1     2     2     77m
+promotion-service   Deployment/promotion-service   cpu: 30%/70%    1     2     1     77m
+== 23:08:09
+form-service        Deployment/form-service        cpu: 141%/70%   1     2     2     77m
+gateway-service     Deployment/gateway-service     cpu: 210%/70%   1     2     2     77m
+promotion-service   Deployment/promotion-service   cpu: 30%/70%    1     2     1     77m
+== 23:08:25
+form-service        Deployment/form-service        cpu: 132%/70%   1     2     2     77m
+gateway-service     Deployment/gateway-service     cpu: 199%/70%   1     2     2     77m
+promotion-service   Deployment/promotion-service   cpu: 32%/70%    1     2     1     77m
+== 23:08:41
+form-service        Deployment/form-service        cpu: 102%/70%   1     2     2     77m
+gateway-service     Deployment/gateway-service     cpu: 155%/70%   1     2     2     77m
+promotion-service   Deployment/promotion-service   cpu: 30%/70%    1     2     1     77m
+== 23:08:56
+form-service        Deployment/form-service        cpu: 114%/70%   1     2     2     78m
+gateway-service     Deployment/gateway-service     cpu: 125%/70%   1     2     2     78m
+promotion-service   Deployment/promotion-service   cpu: 30%/70%    1     2     1     78m

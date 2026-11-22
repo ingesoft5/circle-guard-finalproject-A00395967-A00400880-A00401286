@@ -22,6 +22,7 @@ Para garantizar la estabilidad e integridad del repositorio, la rama `main` cuen
 - **Sin Force Push**: prohibido el uso de `git push --force` o `--force-with-lease` sobre `main`.
 - **Sin borrado**: prohibido eliminar la rama `main`.
 - **Status check de Jenkins obligatorio**: el pipeline de validación CI ejecutado en Jenkins debe reportar estado exitoso (*green build*) para habilitar el merge del PR.
+- **Status check `pr-size` obligatorio**: el PR no puede superar 400 líneas cambiadas, salvo excepción justificada (ver [sección 7](#7-tamaño-de-los-pull-requests)).
 
 ---
 
@@ -142,3 +143,58 @@ gitGraph
     checkout main
     merge docs/CG-11-branching id: "docs(agile): document github flow branching strategy"
 ```
+
+---
+
+## 7. Tamaño de los Pull Requests
+
+### La regla
+
+Un PR puede cambiar **como máximo 400 líneas** (líneas agregadas + líneas borradas), sin contar archivos generados. Lo comprueba el workflow de GitHub Actions [`.github/workflows/pr-size.yml`](../../.github/workflows/pr-size.yml), cuyo job `pr-size` es un *status check* obligatorio del ruleset "Proteger main". El check se vuelve a ejecutar cada vez que se sube un commit al PR, se reabre, se edita la descripción o cambian sus etiquetas.
+
+Además, el workflow pone una etiqueta según el tamaño, para que el revisor sepa de antemano cuánto va a leer:
+
+| Etiqueta | Líneas contadas | ¿Se puede fusionar? |
+|---|---|---|
+| `size/S` | menos de 100 | Sí |
+| `size/M` | de 100 a 249 | Sí |
+| `size/L` | de 250 a 400 | Sí |
+| `size/XL` | más de 400 | No, salvo excepción |
+
+**Excepción.** Si un cambio de verdad no se puede dividir, el PR pasa el check solo si cumple **las dos** condiciones:
+
+1. tiene la etiqueta `size/exception`;
+2. su descripción tiene la sección `## Justificación de tamaño` con texto (el comentario que trae la plantilla no cuenta).
+
+La excepción no reemplaza la revisión: el revisor debe leer la justificación y aceptarla antes de aprobar.
+
+### Por qué
+
+En la sustentación de la Parte 1, el profesor señaló que un PR de 20 000 líneas no se puede revisar: o se aprueba sin leer o se aprueba por confianza, y ninguna de las dos cosas es una revisión. La evidencia apunta en la misma dirección:
+
+- El estudio de SmartBear con el equipo de Cisco (unas 2500 revisiones) encontró que la capacidad de encontrar defectos cae de forma marcada cuando se revisan más de 200 a 400 líneas de una vez, y por eso recomienda no pasar de 400 líneas por revisión ([SmartBear, *Best practices for code review*](https://smartbear.com/learn/code-review/best-practices-for-peer-code-review/)).
+- La guía de ingeniería de Google recomienda cambios pequeños porque se revisan más rápido y con más cuidado, tienen menos errores y son más fáciles de revertir ([Google, *Small CLs*](https://google.github.io/eng-practices/review/developer/small-cls.html)).
+
+Con 400 líneas como máximo, cada PR se puede revisar con atención en una sola sesión.
+
+### Qué cuenta y qué no
+
+Cuenta la suma de `additions + deletions` de cada archivo del PR, tal como la reporta la API de GitHub. **No cuentan** los archivos que genera una herramienta, porque nadie los revisa línea por línea:
+
+| Patrón excluido | Por qué |
+|---|---|
+| `**/package-lock.json`, `**/yarn.lock`, `**/*.lock` | Los genera el gestor de dependencias |
+| `**/.terraform.lock.hcl` | Lo genera `terraform init` (hashes de los proveedores) |
+| `tests/performance/results/**` | Resultados exportados por Locust (CSV y HTML), no código |
+| `gradle/wrapper/**` | Lo genera `gradle wrapper` |
+| `observability/dashboards/**/*.json` | Son dashboards exportados desde Grafana |
+| `*.png`, `*.jpg`, `*.svg` | Son imágenes (diagramas exportados, capturas) |
+| `docs/**/evidencia/**` | Son salidas de comandos guardadas como evidencia |
+
+Todo lo demás sí cuenta: código, pruebas, configuración, Dockerfiles, documentación escrita a mano y archivos de Jenkins, Terraform o Helm. El resumen de cada ejecución del check (pestaña *Checks* del PR) muestra cuántas líneas contó y qué archivos excluyó.
+
+### Cómo dividir un cambio grande
+
+1. **PR encadenados por capas.** Cada PR entrega una capa que compila y pasa las pruebas por sí sola, por ejemplo: (1) modelo y migración, (2) servicio con sus pruebas, (3) endpoint, (4) interfaz. El PR 2 se abre con base en la rama del PR 1. Cuando el PR 1 se fusiona (squash), se rebasa el siguiente sobre `main` con `git rebase --onto origin/main <rama-del-pr-1> <rama-del-pr-2>` y se cambia su base a `main`.
+2. **Feature toggle.** El trabajo incompleto se fusiona **apagado** detrás de una propiedad de configuración y se prende cuando está terminado. Así se pueden fusionar PR pequeños sin exponer una funcionalidad a medias en producción.
+3. **Separar lo mecánico de la lógica.** Formateos, renombres masivos y actualizaciones de dependencias van en un PR aparte, sin cambios de comportamiento, para que el PR con la lógica quede pequeño y se lea fácil.

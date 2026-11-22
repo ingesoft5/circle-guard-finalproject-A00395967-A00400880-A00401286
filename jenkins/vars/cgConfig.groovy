@@ -67,12 +67,40 @@ String host(String envName) {
     return required("CG_${envName.toUpperCase()}_HOST")
 }
 
-/** Falla el build si la versión no es semver con prefijo v (vX.Y.Z). */
+/**
+ * Falla el build si la versión no es una etiqueta válida (CG-116):
+ *   - release:  vX.Y.Z               (la que llega a prod)
+ *   - snapshot: vX.Y.Z-SNAPSHOT.N    (la que se prueba en dev y stage; N = build)
+ * Nunca 'latest'.
+ */
 void requireSemver(String version) {
-    if (!(version ==~ /v\d+\.\d+\.\d+/)) {
-        error "Versión inválida '${version}': se espera vMAJOR.MINOR.PATCH (nunca 'latest')."
+    if (!(version ==~ /v\d+\.\d+\.\d+(-SNAPSHOT\.\d+)?/)) {
+        error "Versión inválida '${version}': se espera vMAJOR.MINOR.PATCH o vMAJOR.MINOR.PATCH-SNAPSHOT.N (nunca 'latest')."
     }
 }
+
+/** Como requireSemver, pero solo acepta releases (vX.Y.Z): prod, tags y rollback. */
+void requireRelease(String version) {
+    if (!(version ==~ /v\d+\.\d+\.\d+/)) {
+        error "Versión inválida '${version}': aquí solo se acepta un release vMAJOR.MINOR.PATCH."
+    }
+}
+
+/** Etiqueta SNAPSHOT de un release candidato: v1.2.0 + build 42 -> v1.2.0-SNAPSHOT.42. */
+String snapshotOf(String release, def buildNumber) {
+    requireRelease(release)
+    return "${release}-SNAPSHOT.${buildNumber}"
+}
+
+// ---- Escaneo de seguridad con Trivy (CG-90) ----
+// Umbral que BLOQUEA el pipeline. Se puede subir a 'HIGH,CRITICAL' con la
+// variable global CG_TRIVY_SEVERITY sin tocar el código.
+String trivySeverity() { return optional('CG_TRIVY_SEVERITY', 'CRITICAL') }
+// Imagen de Trivy fija (nunca latest) para que el resultado sea reproducible.
+String trivyImage()    { return optional('CG_TRIVY_IMAGE', 'aquasec/trivy:0.58.1') }
+
+// ---- Promoción de imágenes sin reconstruir (CG-116) ----
+String craneImage()    { return optional('CG_CRANE_IMAGE', 'gcr.io/go-containerregistry/crane/debug:v0.20.3') }
 
 String required(String name) {
     String value = env.getProperty(name)

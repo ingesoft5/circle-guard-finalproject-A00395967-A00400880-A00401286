@@ -34,7 +34,8 @@ pipeline {
             agent any
             steps {
                 script {
-                    cgConfig.requireSemver(params.ROLLBACK_VERSION)
+                    // Solo releases: las SNAPSHOT nunca llegaron a prod ni tienen tag (CG-116).
+                    cgConfig.requireRelease(params.ROLLBACK_VERSION)
                     if (!params.REASON) {
                         error 'Indique el motivo del rollback (parámetro REASON).'
                     }

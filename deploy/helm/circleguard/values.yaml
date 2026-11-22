@@ -1,0 +1,248 @@
+# Valores comunes a los tres ambientes. Lo que cambia por ambiente está en
+# values-<env>.yaml. Traducción de deploy/docker-compose.yml: cada variable,
+# puerto, dependencia y límite de memoria viene de ahí (ver los comentarios).
+#
+# El pipeline instala con:
+#   helm upgrade --install circleguard deploy/helm/circleguard -n circleguard-<env> \
+#     -f deploy/helm/circleguard/values-<env>.yaml \
+#     --set global.imageTag=<vX.Y.Z[-SNAPSHOT.N]> --set global.registry=<host:8082> --atomic --wait
+
+global:
+  # Obligatorios: los pasa el pipeline. Nunca "latest" (el chart falla si llega).
+  registry: ""
+  imageTag: ""
+  # Secret docker-registry con el usuario deploy-pull de Nexus (create-secrets.sh).
+  imagePullSecret: nexus-pull
+  # Secret con los secretos de la app, copiados del Key Vault del ambiente (create-secrets.sh).
+  secretName: circleguard-secrets
+  env: ""
+
+# Variables comunes a todos los servicios (ConfigMap circleguard-common).
+common:
+  POSTGRES_USER: circleguard
+  # Feature Toggle del torniquete (CG-101, gateway-service). "true" niega el
+  # ingreso a quien no tenga estado en Redis. Se lee al arrancar; un cambio
+  # aquí reinicia los pods (checksum en el Deployment). Para la demo:
+  # --set common.CIRCLEGUARD_FEATURES_STRICT_GATE_ENABLED=true
+  CIRCLEGUARD_FEATURES_STRICT_GATE_ENABLED: "false"
+
+# Ingress (Traefik de k3s): solo el web se publica; los backends quedan internos.
+ingress:
+  enabled: true
+  className: traefik
+  host: ""
+  tls:
+    enabled: false
+    clusterIssuer: letsencrypt-prod
+
+# Seguridad común de los contenedores propios (Pod Security "restricted").
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+  seccompProfile:
+    type: RuntimeDefault
+
+# Imagen de los initContainers que esperan a las dependencias (equivale a depends_on).
+waitImage: busybox:1.36.1
+
+# ---------------------------------------------------------------- microservicios
+java:
+  # Las imágenes arrancan con -XX:MaxRAMPercentage=75: heap = 75 % del límite.
+  # CPU: la request es el consumo en reposo (~10-30m) y el límite cubre el
+  # arranque. Con 100m, los 3 ambientes agotaban las requests del nodo de 4 vCPU.
+  resources:
+    requests: { cpu: 50m, memory: 512Mi }
+    limits: { cpu: "1", memory: 512Mi }
+  # startupProbe: hasta 5 min para arrancar (el compose daba 120 s en 2 vCPU; aquí
+  # arrancan 24 JVM en el mismo nodo). Después liveness/readiness normales.
+  startupProbe: { periodSeconds: 10, failureThreshold: 30, timeoutSeconds: 5 }
+  livenessProbe: { periodSeconds: 10, failureThreshold: 3, timeoutSeconds: 5 }
+  readinessProbe: { periodSeconds: 10, failureThreshold: 3, timeoutSeconds: 5 }
+  runAsUser: 10001
+
+# Por servicio: puerto, réplicas, env (ConfigMap <svc>-service-config),
+# secretEnv (variable -> clave del Secret) y waitFor (host:puerto, como depends_on).
+services:
+  auth:
+    port: 8180
+    env:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/circleguard_auth
+      SPRING_LDAP_URLS: ldap://openldap:389
+      CIRCLEGUARD_IDENTITYSERVICE_URL: http://identity-service:8083
+    secretEnv:
+      SPRING_DATASOURCE_PASSWORD: postgres-password
+      SPRING_LDAP_PASSWORD: ldap-admin-password
+      JWT_SECRET: jwt-secret
+      QR_SECRET: qr-secret
+    datasourceUser: true
+    waitFor: ["postgres:5432", "openldap:389"]
+
+  identity:
+    port: 8083
+    env:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/circleguard_identity
+      # application.yml no lo declara, pero IdentityVaultController publica en Kafka.
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    secretEnv:
+      SPRING_DATASOURCE_PASSWORD: postgres-password
+      JWT_SECRET: jwt-secret
+      VAULT_SECRET: vault-secret
+      # Hexadecimal. VAULT_HASHSALT = VAULT_SALT, como en el compose sin VAULT_HASH_SALT.
+      VAULT_SALT: vault-salt
+      VAULT_HASHSALT: vault-salt
+    datasourceUser: true
+    waitFor: ["postgres:5432", "kafka:29092"]
+
+  promotion:
+    port: 8088
+    env:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/circleguard_promotion
+      SPRING_NEO4J_URI: bolt://neo4j:7687
+      SPRING_NEO4J_AUTHENTICATION_USERNAME: neo4j
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_DATA_REDIS_HOST: redis
+    secretEnv:
+      SPRING_DATASOURCE_PASSWORD: postgres-password
+      SPRING_NEO4J_AUTHENTICATION_PASSWORD: neo4j-password
+      JWT_SECRET: jwt-secret
+    datasourceUser: true
+    tracing: true
+    waitFor: ["postgres:5432", "neo4j:7687", "kafka:29092", "redis:6379"]
+    hpa: true
+
+  notification:
+    port: 8082
+    env:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      AUTH_API_URL: http://auth-service:8180
+      IDENTITY_API_URL: http://identity-service:8083
+      # Integraciones externas en modo mock. Gotify y Twilio no se definen: el código
+      # ya usa MOCK_TOKEN por defecto. Si algún día son reales, van al Secret
+      # (secretEnv), nunca a este ConfigMap.
+      SPRING_MAIL_HOST: localhost
+      SPRING_MAIL_PORT: "25"
+    secretEnv:
+      JWT_SECRET: jwt-secret
+      QR_SECRET: qr-secret
+    tracing: true
+    waitFor: ["kafka:29092"]
+
+  form:
+    port: 8086
+    env:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/circleguard_form
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    secretEnv:
+      SPRING_DATASOURCE_PASSWORD: postgres-password
+    datasourceUser: true
+    tracing: true
+    waitFor: ["postgres:5432", "kafka:29092"]
+    hpa: true
+
+  file:
+    port: 8085
+    env: {}
+    secretEnv: {}
+    # La imagen guarda en "uploads" relativo a su WORKDIR (/app). El PVC se
+    # monta en /app/uploads y fsGroup 10001 lo deja escribible (CG-102).
+    workingDir: ""
+    uploadsPath: /app/uploads
+    persistence: { size: 2Gi }
+    waitFor: []
+
+  gateway:
+    port: 8087
+    env:
+      SPRING_DATA_REDIS_HOST: redis
+    secretEnv:
+      JWT_SECRET: jwt-secret
+      QR_SECRET: qr-secret
+    waitFor: ["redis:6379"]
+    hpa: true
+
+  dashboard:
+    port: 8084
+    env:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/circleguard_dashboard
+      # PromotionClient: circleguard.promotion-service.url
+      CIRCLEGUARD_PROMOTIONSERVICE_URL: http://promotion-service:8088
+    secretEnv:
+      SPRING_DATASOURCE_PASSWORD: postgres-password
+    datasourceUser: true
+    waitFor: ["postgres:5432"]
+
+# Réplicas y HPA (gateway, form, promotion). El HPA reemplaza a "replicas".
+replicas: 1
+hpa:
+  minReplicas: 1
+  maxReplicas: 3
+  cpuUtilization: 70
+
+# Trazas (CG-96, Simón): form, promotion y notification envían a Jaeger.
+tracing:
+  endpoint: http://jaeger-collector.observability:4318/v1/traces
+
+# ------------------------------------------------------------------- web
+web:
+  port: 8080
+  resources:
+    requests: { cpu: 20m, memory: 64Mi }
+    limits: { cpu: 200m, memory: 64Mi }
+  # nginx-unprivileged corre como el usuario 101.
+  runAsUser: 101
+
+# ------------------------------------------------------------------- middleware
+# Imágenes y memoria iguales al compose. Cada una con StatefulSet y PVC (local-path).
+middleware:
+  postgres:
+    image: postgres:16
+    port: 5432
+    resources:
+      requests: { cpu: 50m, memory: 384Mi }
+      limits: { cpu: 500m, memory: 384Mi }
+    storage: 2Gi
+  neo4j:
+    image: neo4j:5.26
+    port: 7687
+    httpPort: 7474
+    # heap + pagecache + memoria nativa. Medido: ~680 MiB en reposo.
+    heap: 384m
+    pagecache: 128m
+    resources:
+      requests: { cpu: 50m, memory: 1Gi }
+      limits: { cpu: "1", memory: 1Gi }
+    storage: 2Gi
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    port: 2181
+    # Sin esto usa -Xmx512M y no cabe en el límite.
+    heapOpts: -Xms128m -Xmx128m
+    resources:
+      requests: { cpu: 25m, memory: 256Mi }
+      limits: { cpu: 500m, memory: 256Mi }
+    storage: 1Gi
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    port: 29092
+    # La imagen usa -Xmx1G por defecto, que supera el límite.
+    heapOpts: -Xms384m -Xmx384m
+    resources:
+      requests: { cpu: 50m, memory: 768Mi }
+      limits: { cpu: "1", memory: 768Mi }
+    storage: 2Gi
+  redis:
+    image: redis:7.2
+    port: 6379
+    resources:
+      requests: { cpu: 25m, memory: 128Mi }
+      limits: { cpu: 250m, memory: 128Mi }
+    storage: 1Gi
+  openldap:
+    image: osixia/openldap:1.5.0
+    port: 389
+    resources:
+      requests: { cpu: 25m, memory: 128Mi }
+      limits: { cpu: 250m, memory: 128Mi }
+    storage: 512Mi

@@ -1,0 +1,31 @@
+# RBAC de Jenkins en el clúster (CG-85). Mínimo privilegio:
+# - ServiceAccount propia en el namespace "cicd", nunca cluster-admin.
+# - Role por namespace de la app (dev, stage, prod) con lo que Helm necesita
+#   para instalar el chart y esperar (--wait), y nada sobre RBAC: Jenkins no
+#   puede darse más permisos ni tocar kube-system u observability.
+# Se aplica con infra/k8s/jenkins-access.sh, que además aplica jenkins-role.yaml
+# en cada namespace de la app y genera el kubeconfig.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cicd
+  labels:
+    app.kubernetes.io/part-of: circleguard
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: jenkins-deployer
+  namespace: cicd
+---
+# Token de larga duración para la credencial kubeconfig-circleguard de Jenkins.
+# Rotación: borrar este Secret y volver a ejecutar jenkins-access.sh.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: jenkins-deployer-token
+  namespace: cicd
+  annotations:
+    kubernetes.io/service-account.name: jenkins-deployer
+type: kubernetes.io/service-account-token

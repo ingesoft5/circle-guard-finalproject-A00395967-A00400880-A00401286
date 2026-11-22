@@ -1,0 +1,30 @@
+# Prometheus descubre los 8 servicios de CircleGuard en los tres ambientes (CG-93).
+#
+# Requisito para el chart de la app (Darío): cada pod de servicio lleva la
+# etiqueta app.kubernetes.io/part-of: circleguard y su puerto HTTP se llama
+# "http". Las métricas salen de /actuator/prometheus (Micrometer).
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: circleguard-services
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: circleguard
+spec:
+  namespaceSelector:
+    matchNames: [circleguard-dev, circleguard-stage, circleguard-prod]
+  selector:
+    matchLabels:
+      app.kubernetes.io/part-of: circleguard
+    matchExpressions:
+      # El cliente web (nginx) no expone métricas de Micrometer.
+      - {key: app.kubernetes.io/name, operator: NotIn, values: [web]}
+  podMetricsEndpoints:
+    - port: http
+      path: /actuator/prometheus
+      interval: 15s
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+        - sourceLabels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+          targetLabel: service

@@ -39,3 +39,14 @@ Antes de solicitar revisión, verifique el cumplimiento de los siguientes requis
 - [ ] **Sin etiquetas `latest`:** Ningún `Dockerfile`, compose ni script hace uso de la etiqueta mutable `latest` para imágenes Docker; se emplean versiones inmutables o la variable `${VERSION}`.
 - [ ] **Documentación actualizada:** Se actualizaron los documentos técnicos pertinentes en `docs/` (arquitectura, servicios, endpoints o guías operativas) en caso de cambios estructurales o de configuración.
 - [ ] **Revisión por pares lista:** El código cumple con las convenciones del proyecto y se encuentra listo para la revisión de al menos un integrante del equipo.
+- [ ] **Tamaño revisable:** El PR tiene ≤ 400 líneas cambiadas (sin archivos generados). Lo verifica el check `pr-size`; ver `docs/agil/branching.md`, sección 7.
+
+---
+
+## Justificación de tamaño
+<!--
+Opcional. Llénela SOLO si el PR supera las 400 líneas cambiadas (sin archivos generados)
+y no se puede dividir en PR más pequeños. Explique por qué y agregue la etiqueta `size/exception`.
+El check `pr-size` exige las dos cosas: la etiqueta y texto en esta sección (este comentario no cuenta).
+-->
+
