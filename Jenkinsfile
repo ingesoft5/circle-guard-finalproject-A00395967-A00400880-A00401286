@@ -12,7 +12,12 @@
 // La infraestructura (IPs, registro) se lee de las variables globales de
 // Jenkins: ver jenkins/README.md.
 
-@Library('circleguard-lib') _
+// La librería se carga de la MISMA rama que se construye: en un PR, su rama de
+// origen; en main, main. Así un PR que agrega o cambia un paso de jenkins/vars
+// se prueba con su propia versión (antes fallaba con "No such property"
+// porque la librería venía siempre de main). Solo se descubren PRs del propio
+// repositorio (no forks), así que el código cargado es del equipo.
+library "circleguard-lib@${env.CHANGE_BRANCH ?: env.BRANCH_NAME}"
 
 pipeline {
     // Sin agente global: cada etapa pide el suyo. Así la espera de la
