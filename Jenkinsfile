@@ -128,7 +128,8 @@ pipeline {
 
                 stage('E2E sobre DEV') {
                     when { expression { isRelease() } }
-                    steps { script { cgE2E("http://${cgConfig.host('dev')}:${cgConfig.webPort()}") } }
+                    // URL del web en dev: el Ingress del clúster (CG_DEV_URL) o la VM.
+                    steps { script { cgE2E(cgConfig.webUrl('dev')) } }
                 }
 
                 stage('Deploy STAGE') {
