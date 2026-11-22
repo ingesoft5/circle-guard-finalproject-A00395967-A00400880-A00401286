@@ -18,9 +18,13 @@ global:
   env: ""
 
 # Variables comunes a todos los servicios (ConfigMap circleguard-common).
-# Aquí va la variable del Feature Toggle de Luis (CG-101) cuando la publique.
 common:
   POSTGRES_USER: circleguard
+  # Feature Toggle del torniquete (CG-101, gateway-service). "true" niega el
+  # ingreso a quien no tenga estado en Redis. Se lee al arrancar; un cambio
+  # aquí reinicia los pods (checksum en el Deployment). Para la demo:
+  # --set common.CIRCLEGUARD_FEATURES_STRICT_GATE_ENABLED=true
+  CIRCLEGUARD_FEATURES_STRICT_GATE_ENABLED: "false"
 
 # Ingress (Traefik de k3s): solo el web se publica; los backends quedan internos.
 ingress:
@@ -141,13 +145,10 @@ services:
     port: 8085
     env: {}
     secretEnv: {}
-    # TEMPORAL (igual que el compose): la imagen crea "uploads" relativo al
-    # directorio de trabajo y /app no es escribible por el UID 10001. Con
-    # workingDir /tmp los archivos van a /tmp/uploads, donde se monta el PVC.
-    # Cuando Luis cierre CG-102 (Dockerfile con /app/uploads): workingDir "" y
-    # uploadsPath /app/uploads.
-    workingDir: /tmp
-    uploadsPath: /tmp/uploads
+    # La imagen guarda en "uploads" relativo a su WORKDIR (/app). El PVC se
+    # monta en /app/uploads y fsGroup 10001 lo deja escribible (CG-102).
+    workingDir: ""
+    uploadsPath: /app/uploads
     persistence: { size: 2Gi }
     waitFor: []
 
