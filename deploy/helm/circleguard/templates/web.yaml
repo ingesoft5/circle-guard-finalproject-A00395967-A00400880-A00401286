@@ -1,0 +1,163 @@
+{{- /*
+  Cliente web (nginx-unprivileged). La imagen trae un default.conf para Docker
+  (resolver 127.0.0.11 y nombres cortos). nginx no usa los dominios de búsqueda
+  de resolv.conf al resolver en cada petición, así que aquí se monta la versión
+  para Kubernetes: CoreDNS y nombres completos del namespace.
+*/ -}}
+{{- $root := . }}
+{{- $labels := dict "root" . "name" "web" "component" "frontend" }}
+{{- $ns := .Release.Namespace }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: web-nginx
+  labels:
+    {{- include "cg.labels" $labels | nindent 4 }}
+data:
+  default.conf: |
+    server {
+        listen {{ .Values.web.port }};
+        server_name _;
+        root /usr/share/nginx/html;
+        index index.html;
+
+        resolver kube-dns.kube-system.svc.cluster.local valid=10s ipv6=off;
+        resolver_timeout 5s;
+        absolute_redirect off;
+        client_max_body_size 10m;
+
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        location = /healthz {
+            access_log off;
+            default_type text/plain;
+            return 200 'ok';
+        }
+
+        # Actuator (health, métricas) es interno: Prometheus lo lee del pod, no de aquí.
+        location ~ ^/svc/[^/]+/actuator {
+            return 404;
+        }
+    {{- range $svc, $cfg := .Values.services }}
+
+        location /svc/{{ $svc }}/ {
+            set $backend {{ $svc }}-service.{{ $ns }}.svc.cluster.local:{{ $cfg.port }};
+            rewrite ^/svc/{{ $svc }}/(.*)$ /$1 break;
+            proxy_pass http://$backend;
+        }
+    {{- end }}
+
+        location / {
+            try_files $uri $uri.html $uri/ /index.html;
+        }
+    }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+  labels:
+    {{- include "cg.labels" $labels | nindent 4 }}
+spec:
+  selector:
+    {{- include "cg.selector" $labels | nindent 4 }}
+  ports:
+    # No se llama "http": el PodMonitor solo raspa los puertos http de los servicios Java.
+    - name: web
+      port: 80
+      targetPort: web
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  labels:
+    {{- include "cg.labels" $labels | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicas }}
+  revisionHistoryLimit: 3
+  strategy:
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  selector:
+    matchLabels:
+      {{- include "cg.selector" $labels | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "cg.labels" $labels | nindent 8 }}
+        app.kubernetes.io/version: {{ .Values.global.imageTag | quote }}
+      annotations:
+        checksum/nginx: {{ toJson .Values.services | sha256sum | trunc 16 }}
+    spec:
+      imagePullSecrets:
+        - name: {{ .Values.global.imagePullSecret }}
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.web.runAsUser }}
+      containers:
+        - name: web
+          image: {{ include "cg.image" (dict "root" . "name" "web") }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: web
+              containerPort: {{ .Values.web.port }}
+          readinessProbe:
+            httpGet: { path: /healthz, port: web }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: web }
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.web.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: nginx-conf
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+            # nginx escribe pid y caché en /tmp (raíz de solo lectura).
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: nginx-conf
+          configMap:
+            name: web-nginx
+        - name: tmp
+          emptyDir: { sizeLimit: 64Mi }
+{{- if .Values.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: web
+  labels:
+    {{- include "cg.labels" $labels | nindent 4 }}
+  {{- if .Values.ingress.tls.enabled }}
+  annotations:
+    cert-manager.io/cluster-issuer: {{ .Values.ingress.tls.clusterIssuer }}
+    traefik.ingress.kubernetes.io/router.middlewares: kube-system-redirect-https@kubernetescrd
+  {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts: [{{ .Values.ingress.host | quote }}]
+      secretName: web-tls
+  {{- end }}
+  rules:
+    - host: {{ required "ingress.host es obligatorio" .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  name: web
+{{- end }}

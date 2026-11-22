@@ -1,0 +1,180 @@
+{{- /*
+  Los 8 microservicios Spring Boot con un solo template (CG-81). Por servicio:
+  ConfigMap (valores no secretos), Deployment, Service, y opcionalmente HPA y PVC.
+*/ -}}
+{{- $root := . }}
+{{- range $svc, $cfg := .Values.services }}
+{{- $name := printf "%s-service" $svc }}
+{{- $labels := dict "root" $root "name" $name "component" "backend" }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}-config
+  labels:
+    {{- include "cg.labels" $labels | nindent 4 }}
+data:
+  {{- range $k, $v := $cfg.env }}
+  {{ $k }}: {{ $v | quote }}
+  {{- end }}
+  {{- if $cfg.tracing }}
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: {{ $root.Values.tracing.endpoint | quote }}
+  {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "cg.labels" $labels | nindent 4 }}
+spec:
+  selector:
+    {{- include "cg.selector" $labels | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ $cfg.port }}
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "cg.labels" $labels | nindent 4 }}
+spec:
+  {{- if not $cfg.hpa }}
+  replicas: {{ $root.Values.replicas }}
+  {{- end }}
+  revisionHistoryLimit: 3
+  {{- if $cfg.persistence }}
+  # Un PVC ReadWriteOnce no se puede montar en dos pods a la vez durante el rollout.
+  strategy:
+    type: Recreate
+  {{- else }}
+  strategy:
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "cg.selector" $labels | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "cg.labels" $labels | nindent 8 }}
+        app.kubernetes.io/version: {{ $root.Values.global.imageTag | quote }}
+      annotations:
+        # Reinicia los pods si cambia su configuración.
+        checksum/config: {{ toJson $cfg | sha256sum | trunc 16 }}
+    spec:
+      imagePullSecrets:
+        - name: {{ $root.Values.global.imagePullSecret }}
+      # Sin variables *_PORT/*_SERVICE_HOST inyectadas por Kubernetes.
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ $root.Values.java.runAsUser }}
+        fsGroup: {{ $root.Values.java.runAsUser }}
+      {{- include "cg.waitFor" (dict "root" $root "targets" $cfg.waitFor) | nindent 6 }}
+      containers:
+        - name: {{ $name }}
+          image: {{ include "cg.image" (dict "root" $root "name" $name) }}
+          imagePullPolicy: IfNotPresent
+          {{- with $cfg.workingDir }}
+          workingDir: {{ . }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ $cfg.port }}
+          envFrom:
+            - configMapRef:
+                name: circleguard-common
+            - configMapRef:
+                name: {{ $name }}-config
+          env:
+            {{- if $cfg.datasourceUser }}
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                configMapKeyRef: { name: circleguard-common, key: POSTGRES_USER }
+            {{- end }}
+            {{- range $var, $key := $cfg.secretEnv }}
+            - name: {{ $var }}
+              valueFrom:
+                secretKeyRef: { name: {{ $root.Values.global.secretName }}, key: {{ $key }} }
+            {{- end }}
+          startupProbe:
+            httpGet: { path: /actuator/health/liveness, port: http }
+            {{- toYaml $root.Values.java.startupProbe | nindent 12 }}
+          livenessProbe:
+            httpGet: { path: /actuator/health/liveness, port: http }
+            {{- toYaml $root.Values.java.livenessProbe | nindent 12 }}
+          readinessProbe:
+            httpGet: { path: /actuator/health/readiness, port: http }
+            {{- toYaml $root.Values.java.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml $root.Values.java.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml $root.Values.securityContext | nindent 12 }}
+          volumeMounts:
+            # Raíz de solo lectura: Tomcat y la JVM escriben en /tmp.
+            - name: tmp
+              mountPath: /tmp
+            {{- if $cfg.persistence }}
+            - name: uploads
+              mountPath: {{ $cfg.uploadsPath }}
+            {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: { sizeLimit: 512Mi }
+        {{- if $cfg.persistence }}
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: {{ $name }}-uploads
+        {{- end }}
+{{- if $cfg.persistence }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $name }}-uploads
+  labels:
+    {{- include "cg.labels" $labels | nindent 4 }}
+  annotations:
+    # Los archivos subidos sobreviven a un helm uninstall.
+    helm.sh/resource-policy: keep
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: {{ $cfg.persistence.size }}
+{{- end }}
+{{- if $cfg.hpa }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "cg.labels" $labels | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ $name }}
+  minReplicas: {{ $root.Values.hpa.minReplicas }}
+  maxReplicas: {{ $root.Values.hpa.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $root.Values.hpa.cpuUtilization }}
+  behavior:
+    # Evita que el pico de CPU del arranque de la JVM dispare más réplicas.
+    scaleUp:
+      stabilizationWindowSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+{{- end }}
+{{- end }}
