@@ -1,0 +1,83 @@
+{{- /* Middleware del ambiente (CG-81). Configuración tomada de deploy/docker-compose.yml. */ -}}
+{{- $m := .Values.middleware }}
+{{- $secret := .Values.global.secretName }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-initdb
+  labels:
+    {{- include "cg.labels" (dict "root" . "name" "postgres" "component" "middleware") | nindent 4 }}
+data:
+  # Crea las 5 bases de los servicios; solo corre con el volumen vacío.
+  init-db.sql: |
+    {{- .Files.Get "files/init-db.sql" | nindent 4 }}
+---
+{{ include "cg.middleware" (dict "root" . "name" "postgres" "cfg" $m.postgres
+  "ports" (list (dict "name" "postgres" "port" $m.postgres.port))
+  "env" (list
+    (dict "name" "POSTGRES_USER" "valueFrom" (dict "configMapKeyRef" (dict "name" "circleguard-common" "key" "POSTGRES_USER")))
+    (dict "name" "POSTGRES_PASSWORD" "valueFrom" (dict "secretKeyRef" (dict "name" $secret "key" "postgres-password")))
+    (dict "name" "POSTGRES_DB" "value" "circleguard")
+    (dict "name" "PGDATA" "value" "/var/lib/postgresql/data/pgdata"))
+  "probe" (dict "exec" (dict "command" (list "sh" "-c" "pg_isready -h 127.0.0.1 -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\"")) "periodSeconds" 10)
+  "volumes" (list (dict "name" "data" "path" "/var/lib/postgresql/data"))
+  "extraMounts" (list (dict "name" "initdb" "mountPath" "/docker-entrypoint-initdb.d" "readOnly" true))
+  "extraVolumes" (list (dict "name" "initdb" "configMap" (dict "name" "postgres-initdb")))
+  "claims" (list "data")) }}
+---
+{{- /* La contraseña va en CG_NEO4J_PASSWORD, sin prefijo NEO4J_: la imagen convierte toda variable NEO4J_* en un ajuste y no arranca. */}}
+{{ include "cg.middleware" (dict "root" . "name" "neo4j" "cfg" $m.neo4j
+  "ports" (list (dict "name" "bolt" "port" $m.neo4j.port) (dict "name" "browser" "port" $m.neo4j.httpPort))
+  "env" (list
+    (dict "name" "CG_NEO4J_PASSWORD" "valueFrom" (dict "secretKeyRef" (dict "name" $secret "key" "neo4j-password")))
+    (dict "name" "NEO4J_AUTH" "value" "neo4j/$(CG_NEO4J_PASSWORD)")
+    (dict "name" "NEO4J_server_memory_heap_initial__size" "value" $m.neo4j.heap)
+    (dict "name" "NEO4J_server_memory_heap_max__size" "value" $m.neo4j.heap)
+    (dict "name" "NEO4J_server_memory_pagecache_size" "value" $m.neo4j.pagecache))
+  "probe" (dict "tcpSocket" (dict "port" "bolt") "periodSeconds" 10 "initialDelaySeconds" 20)
+  "volumes" (list (dict "name" "data" "path" "/data"))
+  "claims" (list "data")) }}
+---
+{{ include "cg.middleware" (dict "root" . "name" "zookeeper" "cfg" $m.zookeeper
+  "ports" (list (dict "name" "client" "port" $m.zookeeper.port))
+  "env" (list
+    (dict "name" "ZOOKEEPER_CLIENT_PORT" "value" (toString $m.zookeeper.port))
+    (dict "name" "ZOOKEEPER_TICK_TIME" "value" "2000")
+    (dict "name" "KAFKA_HEAP_OPTS" "value" $m.zookeeper.heapOpts))
+  "probe" (dict "tcpSocket" (dict "port" "client") "periodSeconds" 10)
+  "volumes" (list (dict "name" "data" "path" "/var/lib/zookeeper/data" "subPath" "data") (dict "name" "data" "path" "/var/lib/zookeeper/log" "subPath" "log"))
+  "claims" (list "data")) }}
+---
+{{ include "cg.middleware" (dict "root" . "name" "kafka" "cfg" $m.kafka
+  "ports" (list (dict "name" "kafka" "port" $m.kafka.port))
+  "initContainers" (get (include "cg.waitFor" (dict "root" . "targets" (list "zookeeper:2181")) | fromYaml) "initContainers")
+  "env" (list
+    (dict "name" "KAFKA_HEAP_OPTS" "value" $m.kafka.heapOpts)
+    (dict "name" "KAFKA_BROKER_ID" "value" "1")
+    (dict "name" "KAFKA_ZOOKEEPER_CONNECT" "value" (printf "zookeeper:%v" $m.zookeeper.port))
+    (dict "name" "KAFKA_LISTENERS" "value" (printf "PLAINTEXT://0.0.0.0:%v" $m.kafka.port))
+    (dict "name" "KAFKA_ADVERTISED_LISTENERS" "value" (printf "PLAINTEXT://kafka:%v" $m.kafka.port))
+    (dict "name" "KAFKA_LISTENER_SECURITY_PROTOCOL_MAP" "value" "PLAINTEXT:PLAINTEXT")
+    (dict "name" "KAFKA_INTER_BROKER_LISTENER_NAME" "value" "PLAINTEXT")
+    (dict "name" "KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR" "value" "1"))
+  "probe" (dict "tcpSocket" (dict "port" "kafka") "periodSeconds" 10 "initialDelaySeconds" 15)
+  "volumes" (list (dict "name" "data" "path" "/var/lib/kafka/data"))
+  "claims" (list "data")) }}
+---
+{{ include "cg.middleware" (dict "root" . "name" "redis" "cfg" $m.redis
+  "ports" (list (dict "name" "redis" "port" $m.redis.port))
+  "probe" (dict "exec" (dict "command" (list "sh" "-c" "redis-cli ping | grep -q PONG")) "periodSeconds" 10)
+  "volumes" (list (dict "name" "data" "path" "/data"))
+  "claims" (list "data")) }}
+---
+{{ include "cg.middleware" (dict "root" . "name" "openldap" "cfg" $m.openldap
+  "ports" (list (dict "name" "ldap" "port" $m.openldap.port))
+  "command" (list "sh" "-c" "ulimit -n 1024 && exec /container/tool/run")
+  "env" (list
+    (dict "name" "LDAP_ORGANISATION" "value" "CircleGuard")
+    (dict "name" "LDAP_DOMAIN" "value" "circleguard.edu")
+    (dict "name" "LDAP_ADMIN_PASSWORD" "valueFrom" (dict "secretKeyRef" (dict "name" $secret "key" "ldap-admin-password")))
+    (dict "name" "LDAP_CONFIG_PASSWORD" "valueFrom" (dict "secretKeyRef" (dict "name" $secret "key" "ldap-admin-password"))))
+  "probe" (dict "exec" (dict "command" (list "sh" "-c" "ldapsearch -x -H ldap://localhost:389 -s base -b dc=circleguard,dc=edu -D cn=admin,dc=circleguard,dc=edu -w \"$LDAP_ADMIN_PASSWORD\" > /dev/null")) "periodSeconds" 10 "initialDelaySeconds" 10)
+  "volumes" (list (dict "name" "data" "path" "/var/lib/ldap" "subPath" "ldap") (dict "name" "data" "path" "/etc/ldap/slapd.d" "subPath" "slapd.d"))
+  "claims" (list "data")) }}
