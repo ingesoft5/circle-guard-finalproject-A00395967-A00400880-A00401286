@@ -1,0 +1,46 @@
+# Grafana Alloy (CG-97): lee los logs de los pods de CircleGuard y los envía a
+# Loki con las etiquetas namespace, app, pod y container. Así se busca por
+# servicio ({app="gateway-service"}) y, dentro del texto, por traceId.
+alloy:
+  configMap:
+    content: |-
+      discovery.kubernetes "pods" {
+        role = "pod"
+      }
+
+      discovery.relabel "circleguard" {
+        targets = discovery.kubernetes.pods.targets
+        // Solo los namespaces de la aplicación.
+        rule {
+          source_labels = ["__meta_kubernetes_namespace"]
+          regex         = "circleguard-.*"
+          action        = "keep"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_namespace"]
+          target_label  = "namespace"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+          target_label  = "app"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_name"]
+          target_label  = "pod"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_container_name"]
+          target_label  = "container"
+        }
+      }
+
+      loki.source.kubernetes "pods" {
+        targets    = discovery.relabel.circleguard.output
+        forward_to = [loki.write.default.receiver]
+      }
+
+      loki.write "default" {
+        endpoint {
+          url = "http://loki-gateway.observability/loki/api/v1/push"
+        }
+      }
