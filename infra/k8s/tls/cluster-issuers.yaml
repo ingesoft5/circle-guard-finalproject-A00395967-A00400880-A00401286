@@ -1,0 +1,43 @@
+# Emisores de certificados (CG-86). Let's Encrypt con desafío HTTP-01 resuelto
+# por Traefik: el dominio es <env>.<ip>.sslip.io, que resuelve a la IP pública
+# del clúster sin registrar un dominio propio.
+# letsencrypt-staging sirve para probar sin gastar el límite de emisión.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-prod-account
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: traefik
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-staging-account
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: traefik
+---
+# Redirección HTTP -> HTTPS para los Ingress con TLS (anotación
+# traefik.ingress.kubernetes.io/router.middlewares: kube-system-redirect-https@kubernetescrd).
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-https
+  namespace: kube-system
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true
