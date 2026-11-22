@@ -1,0 +1,54 @@
+#cloud-config
+# Nodo k3s (server + agent en la misma VM). Lo genera Terraform (módulo cluster).
+package_update: true
+packages: [curl, jq]
+
+write_files:
+  # Configuración de k3s antes de instalarlo: el instalador la lee al arrancar.
+  - path: /etc/rancher/k3s/config.yaml
+    permissions: "0600"
+    content: |
+      # Jenkins y el administrador entran a la API por la IP pública.
+      tls-san:
+        - "${public_ip}"
+      write-kubeconfig-mode: "0600"
+      # Cifra los Secrets en el datastore de k3s (en reposo).
+      secrets-encryption: true
+      # Reserva memoria para el sistema y desaloja pods antes de que el nodo se quede sin RAM.
+      kubelet-arg:
+        - "system-reserved=memory=1Gi"
+        - "eviction-hard=memory.available<500Mi"
+
+  # Nexus sirve el registro por HTTP: sin esta entrada containerd exige HTTPS.
+  # Las credenciales NO van aquí: cada namespace usa un imagePullSecret.
+  - path: /etc/rancher/k3s/registries.yaml
+    permissions: "0600"
+    content: |
+      mirrors:
+        "${registry_host}":
+          endpoint:
+            - "http://${registry_host}"
+
+  # k3s aplica solo lo que esté en esta carpeta (auto-deploy manifests).
+  - path: /var/lib/rancher/k3s/server/manifests/circleguard-namespaces.yaml
+    content: |
+%{ for ns, env in namespaces ~}
+      ---
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: ${ns}
+        labels:
+          app.kubernetes.io/part-of: circleguard
+          circleguard.io/env: ${env}
+%{ if env != "observability" ~}
+          # baseline: prohíbe contenedores privilegiados y hostPath en las apps.
+          pod-security.kubernetes.io/enforce: baseline
+          pod-security.kubernetes.io/warn: restricted
+%{ endif ~}
+%{ endfor ~}
+
+runcmd:
+  - curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION='${k3s_version}' sh -s - server
+  - until /usr/local/bin/kubectl get nodes >/dev/null 2>&1; do sleep 5; done
+  - echo "k3s listo" > /var/log/circleguard-k3s-ready
