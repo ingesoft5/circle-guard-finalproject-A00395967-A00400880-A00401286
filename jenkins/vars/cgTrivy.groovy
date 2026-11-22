@@ -54,11 +54,15 @@ void scanConfig(List<String> paths) {
     docker.image(cgConfig.trivyImage()).inside('--entrypoint=') {
         present.each { path ->
             String name = 'iac-' + path.replaceAll('[^A-Za-z0-9]+', '-')
-            withEnv(["SCAN_PATH=${path}", "REPORT=${reports}/${name}",
+            // El chart exige global.registry y un global.imageTag semver: sin
+            // valores, Trivy no lo puede renderizar y lo da por bueno sin revisarlo.
+            String helmSet = path.startsWith('deploy/helm') ? cgConfig.trivyHelmSet() : ''
+            withEnv(["SCAN_PATH=${path}", "REPORT=${reports}/${name}", "HELM_SET=${helmSet}",
                      "SEVERITY=${cgConfig.trivySeverity()}", 'TRIVY_CACHE_DIR=.trivy-cache']) {
-                sh 'trivy config --quiet --format table --output "$REPORT.txt" "$SCAN_PATH"'
+                sh 'trivy config --quiet ${HELM_SET:+--helm-set "$HELM_SET"} --format table --output "$REPORT.txt" "$SCAN_PATH"'
                 status += sh(returnStatus: true, script: '''
-                    trivy config --quiet --severity "$SEVERITY" --ignorefile .trivyignore --exit-code 1 "$SCAN_PATH"
+                    trivy config --quiet ${HELM_SET:+--helm-set "$HELM_SET"} --severity "$SEVERITY" \
+                        --ignorefile .trivyignore --exit-code 1 "$SCAN_PATH"
                 ''')
             }
         }

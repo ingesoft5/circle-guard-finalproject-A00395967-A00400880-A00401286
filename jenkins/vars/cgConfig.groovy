@@ -103,6 +103,8 @@ String snapshotOf(String release, def buildNumber) {
 String trivySeverity() { return optional('CG_TRIVY_SEVERITY', 'CRITICAL') }
 // Imagen de Trivy fija (nunca latest) para que el resultado sea reproducible.
 String trivyImage()    { return optional('CG_TRIVY_IMAGE', 'aquasec/trivy:0.58.1') }
+// Valores de ejemplo para que Trivy pueda renderizar el chart de Helm.
+String trivyHelmSet()  { return optional('CG_TRIVY_HELM_SET', 'global.registry=registry.example:8082,global.imageTag=v0.0.0') }
 
 // ---- Despliegue a Kubernetes con Helm (CG-91) ----
 // 'helm' (Kubernetes, Parte 2) o 'compose' (SSH a las VMs, Parte 1, respaldo).
