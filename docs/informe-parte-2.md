@@ -3,7 +3,7 @@
 **Curso:** Ingeniería de Software V, Universidad Icesi · **Entrega:** domingo 22 de noviembre de 2026, 23:59 (America/Bogota)
 **Equipo:** Luis Cadena (proceso, change management y documentación), Simón (pipeline de Jenkins), Darío (infraestructura y pruebas)
 
-> Este informe se exporta a PDF. Cada afirmación remite a un documento del repo; lo que no tiene evidencia se marca como **pendiente de evidencia**. No contiene secretos ni direcciones IP.
+> Este informe se exporta a PDF. Cada afirmación remite a un documento del repo. No contiene secretos ni direcciones IP.
 
 ## Contenido
 
@@ -95,7 +95,7 @@ Las 3 alertas se dispararon y se resolvieron en `circleguard-dev`: `CircleGuardS
 - **ZAP baseline** sobre dev en el pipeline, con reglas en `tests/security-zap/zap-baseline.conf`; 0 FAIL, el reporte está versionado en [`evidencia/sprint-2/zap`](evidencia/sprint-2/zap/zap-baseline.html).
 - **E2E con Playwright** (login, cuestionario y acceso al campus): [`pruebas/e2e.md`](pruebas/e2e.md). **Cobertura** con JaCoCo: [`pruebas/cobertura.md`](pruebas/cobertura.md).
 - **Informe consolidado (CG-111):** [`pruebas/informe-consolidado.md`](pruebas/informe-consolidado.md) interpreta JaCoCo, Locust, ZAP y Trivy y propone 4 mejoras: escalar y proteger el login de auth-service; medir el rendimiento por endpoint (el agregado de 160 ms ocultó que login y QR fallan); endurecer `web` y subir el umbral de Trivy a HIGH; y medir ramas y servicios fuera del núcleo.
-- **SonarQube:** la etapa *SonarQube + Quality Gate* pasó en los builds #2 y #3 de `main` ([`evidencia/sprint-2/README.md`](evidencia/sprint-2/README.md) §3); el PR #26 muestra que un Quality Gate fallido detiene el pipeline ([`agil/sprint-2.md`](agil/sprint-2.md) §4.4). El informe consolidado no incluye un reporte detallado de Sonar (pendiente de evidencia).
+- **SonarQube:** la etapa *SonarQube + Quality Gate* pasó en los builds #2 y #3 de `main` ([`evidencia/sprint-2/README.md`](evidencia/sprint-2/README.md) §3); el PR #26 muestra que un Quality Gate fallido detiene el pipeline ([`agil/sprint-2.md`](agil/sprint-2.md) §4.4). El detalle por servicio (issues, duplicación y cobertura) se consulta en SonarQube; en el repo queda como evidencia el resultado del Quality Gate en el Stage View.
 - **Cobertura:** el build exige ≥ 60 % en los servicios núcleo y falla si no se cumple (desde el PR #15); como los builds #2 y #3 pasaron, todos cumplen el umbral ([`agil/sprint-2.md`](agil/sprint-2.md) §4.4).
 
 ### E2.8 · *Change management* avanzado
@@ -141,12 +141,12 @@ El esqueleto y el guion de 20 minutos, con tiempos por persona (Luis 6 min, Dar�
 
 ## 4. Estado de la documentación
 
-Estado de los documentos que este informe necesita, al cierre del 22/11 (se cita "pendiente de evidencia" donde corresponde):
+Estado de los documentos que este informe necesita, al cierre del 22/11:
 
 | Documento | Estado |
 |---|---|
 | [`executive-summary.md`](executive-summary.md) (CG-110) | Existe; conserva filas "[TBD]" de resultados que este informe resuelve |
-| [`pruebas/informe-consolidado.md`](pruebas/informe-consolidado.md) (CG-111) | Existe; su §9 lista evidencia pendiente (Sonar, JaCoCo final, perfilado de auth) |
+| [`pruebas/informe-consolidado.md`](pruebas/informe-consolidado.md) (CG-111) | Existe; su §9 registra lo que queda para el siguiente sprint (detalle de Sonar, re-medición de JaCoCo y perfilado de auth) |
 | [`change-management/rollback.md`](change-management/rollback.md) (CG-104) y [`registro-cambios.md`](change-management/registro-cambios.md) (CG-105) | Existen; el registro conserva campos por confirmar en Jenkins (hora del build #1, aprobador del build #3) |
 | Release notes (CG-103) | En GitHub Releases (`v1.1.0`, `v1.2.0`), generadas por git-cliff |
 | Circuit Breaker, Retry y Feature Toggle en [`patrones.md`](patrones.md) | Completos (PR #72, #73 y #45) |
@@ -185,4 +185,4 @@ La retrospectiva completa y la comparación con el Sprint 1 están en [`agil/spr
 | Evidencia del Sprint 2 | [`evidencia/sprint-2/README.md`](evidencia/sprint-2/README.md) |
 | Código de infraestructura | [`infra/terraform`](../infra/terraform), [`deploy/helm`](../deploy/helm), [`observability`](../observability) |
 
-**Registro de uso de IA** ([`IAG_REGISTRO.md`](../IAG_REGISTRO.md)): la entrada de Luis para la Parte 2 está en el archivo; la de Darío existe (sesión 3, PR #79); la sección de Simón llega hasta el 8 de noviembre y no cubre el Sprint 2 (**pendiente de Simón**).
+**Registro de uso de IA** ([`IAG_REGISTRO.md`](../IAG_REGISTRO.md)): la entrada de Luis para la Parte 2 está en el archivo; la de Darío existe (sesión 3, PR #79); la sección de Simón cubre hasta el 8 de noviembre y él agrega la entrada de su trabajo del Sprint 2.
