@@ -13,8 +13,8 @@ Evidencia de las historias del Sprint 2 sobre el clúster k3s (ambientes `circle
 | Build | Versión | Contenido | Aprobó prod | Resultado |
 |---|---|---|---|---|
 | `main` #1 | v1.1.0-SNAPSHOT.1 | Código del Sprint 2 (#67 a #75) | No llegó | Falló en E2E sobre DEV (ver sección 8) |
-| `main` #2 | **v1.1.0** | #84: corrección de CORS detrás de Traefik | dario | Desplegado en prod |
-| `main` #3 | **v1.2.0** | #85: HPA de auth-service (recomendación de la prueba de estrés) | adminJenkins | Desplegado en prod |
+| `main` #2 | **v1.1.0** | Código del Sprint 2 (#67 a #75) + #84: corrección de CORS detrás de Traefik | dario | Desplegado en prod |
+| `main` #3 | **v1.2.0** | #85: HPA de auth-service (recomendación de la prueba de estrés) | adminJenkins (Simón, con la cuenta de administrador) | Desplegado en prod |
 | `circleguard-rollback` #2 | v1.2.0 → **v1.1.0** | Rollback de prod (CG-104) | Aprobación manual | Prod vuelve a v1.1.0 |
 
 Releases en GitHub: [v1.1.0](https://github.com/ingesoft5/circle-guard-finalproject-A00395967-A00400880-A00401286/releases/tag/v1.1.0) y [v1.2.0](https://github.com/ingesoft5/circle-guard-finalproject-A00395967-A00400880-A00401286/releases/tag/v1.2.0).
