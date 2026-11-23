@@ -92,7 +92,7 @@ Escaneo pasivo contra `https://dev.40-64-120-3.sslip.io` antes de promover a sta
 | Bajo | Timestamp Disclosure - Unix | 10096 | IGNORE |
 | Bajo | X-Content-Type-Options Header Missing | 10021 | WARN |
 
-**Pendiente identificado:** el hallazgo alto 20020 aparece porque nginx publica su versión en la cabecera `Server` (10036). La corrección propuesta es `server_tokens off;` y los encabezados de endurecimiento (CSP, X-Frame-Options, X-Content-Type-Options) en el nginx del chart. Reporte completo: `zap-reports/zap-baseline.html` en los artefactos del build.
+**Pendiente identificado:** el hallazgo alto 20020 aparece porque nginx publica su versión en la cabecera `Server` (10036). La corrección propuesta es `server_tokens off;` y los encabezados de endurecimiento (CSP, X-Frame-Options, X-Content-Type-Options) en el nginx del chart. Reporte completo del build #3, versionado aquí para que no dependa de Jenkins: [zap-baseline.html](zap/zap-baseline.html) y [zap-baseline.json](zap/zap-baseline.json).
 
 ---
 
@@ -136,3 +136,22 @@ Corrección en el PR #84: el nginx del chart quita `Origin` cuando coincide con 
 ## 9. Resiliencia (CG-98, CG-99)
 
 Los patrones Circuit Breaker (dashboard → promotion) y Retry (auth → identity) están documentados en [resiliencia.md](../../patrones/resiliencia.md) y se verifican con pruebas unitarias en cada build (`PromotionClient` e `IdentityClient`).
+
+---
+
+## 10. Observabilidad (CG-93, CG-94, CG-96, CG-97)
+
+### 10.1 Grafana: dashboard técnico del gateway
+![Grafana, dashboard técnico del gateway](img/grafana-gateway.png)
+
+### 10.2 Grafana: dashboard de negocio
+![Grafana, dashboard de negocio](img/grafana-negocio.png)
+
+### 10.3 Jaeger: traza form → Kafka → promotion
+![Jaeger, traza de form a promotion](img/jaeger-traza-form-promotion.png)
+
+### 10.4 Loki: logs de promotion con traceId
+![Loki, logs de promotion con traceId](img/loki-logs-promotion.png)
+
+### 10.5 Alertmanager: las 3 alertas activas enviadas a Discord (CG-95)
+![Alertmanager con las 3 alertas de CircleGuard](img/alertmanager-cg95.png)
