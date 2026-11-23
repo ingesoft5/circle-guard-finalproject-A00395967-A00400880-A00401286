@@ -228,8 +228,8 @@ Con `CG_DEPLOY_TARGET=helm` (el valor por defecto) el mismo job `circleguard-rol
 
 - A mano: repetir el `helm upgrade --install` de [§2.3](#23-en-kubernetes) con `global.imageTag`
   de una versión ya publicada.
-- El plan formal (quién decide y aprueba, verificación) irá en
-  `docs/change-management/rollback.md` (CG-104): **pendiente: se completa cuando exista en main**.
+- El plan formal (quién decide y aprueba, verificación, evidencia y limitaciones) está en
+  [`docs/change-management/rollback.md`](change-management/rollback.md) (CG-104).
 - Los comandos `helm history` y `kubectl rollout history` no están en ningún README del
   repo: pendiente de evidencia.
 
