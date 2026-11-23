@@ -156,36 +156,41 @@ Afirmaciones que aparecen como candidatas o en otros documentos y que el código
 
 ## Patrones nuevos de la Parte 2
 
+Fuente: código de los PR #72 (Circuit Breaker), #73 (Retry) y #45 (Feature Toggle), ya en `main`. Detalle ampliado en [`patrones/resiliencia.md`](patrones/resiliencia.md) y [`patrones-feature-toggle.md`](patrones-feature-toggle.md).
+
 ### Circuit Breaker
 
-> **Responsable:** Simón. Pendiente de implementación.
+> **Responsable:** Simón (PR #72, `feat(dashboard): add circuit breaker with fallback to promotion client`).
 
-- **Dónde está (ruta y clase):** _pendiente_
-- **Cómo funciona:** _pendiente_
-- **Configuración:** _pendiente_
-- **Trade-off:** _pendiente_
-- **Evidencia (prueba o captura):** _pendiente de evidencia_
+- **Propósito:** que dashboard no se quede esperando a un promotion caído o lento; responde rápido con datos degradados.
+- **Dónde está (ruta y clase):** `services/circleguard-dashboard-service/src/main/java/com/circleguard/dashboard/client/PromotionClient.java`, métodos con `@CircuitBreaker(name = CIRCUIT, fallbackMethod = ...)` (`healthStatsFallback` y `departmentStatsFallback`).
+- **Cómo funciona:** Resilience4j cuenta las últimas 10 llamadas; con al menos 5 llamadas y 50 % de fallos (o de llamadas de más de 2 s) el circuito se abre 30 s y las llamadas van directo al *fallback*. Luego deja pasar 2 llamadas de prueba (*half-open*).
+- **Configuración:** bloque `resilience4j.circuitbreaker.instances.promotion` de `services/circleguard-dashboard-service/src/main/resources/application.yml`.
+- **Cómo se prueba:** `PromotionClientCircuitBreakerTest` inyecta fallas con `MockRestServiceServer`: tras 4 respuestas 500 el circuito pasa a OPEN y la siguiente llamada no llega a promotion; con promotion sano queda CLOSED.
+- **Trade-off:** durante los 30 s abiertos el tablero muestra datos degradados aunque promotion ya se haya recuperado; un umbral mal calibrado puede abrir el circuito por errores aislados (de ahí el mínimo de 5 llamadas).
 
 ### Retry
 
-> **Responsable:** Simón. Pendiente de implementación.
+> **Responsable:** Simón (PR #73, `feat(auth): retry identity mapping with exponential backoff`).
 
-- **Dónde está (ruta y clase):** _pendiente_
-- **Cómo funciona:** _pendiente_
-- **Configuración:** _pendiente_
-- **Trade-off:** _pendiente_
-- **Evidencia (prueba o captura):** _pendiente de evidencia_
+- **Propósito:** que un corte momentáneo de identity (por ejemplo, un reinicio durante un despliegue) no tumbe el login.
+- **Dónde está (ruta y clase):** `services/circleguard-auth-service/src/main/java/com/circleguard/auth/client/IdentityClient.java`, método anotado con `@Retry(name = RETRY)`.
+- **Cómo funciona:** hasta 3 intentos con espera de 200 ms que se duplica (backoff exponencial). Solo reintenta errores transitorios (`ResourceAccessException`, 502, 503 y 504); no reintenta 4xx ni 500. Es seguro porque el mapeo de identidad es idempotente (justificación en `resiliencia.md`).
+- **Configuración:** bloque `resilience4j.retry.instances.identity` de `services/circleguard-auth-service/src/main/resources/application.yml`.
+- **Cómo se prueba:** `IdentityClientRetryTest`: 503, luego corte de red y luego éxito (resuelve al tercer intento); 503 permanente (se rinde tras 3 intentos); 400 y 500 se intentan una sola vez.
+- **Trade-off:** en el peor caso el login tarda unos 600 ms más antes de fallar; si identity está realmente caído, los reintentos solo retrasan el error. No se aplica a operaciones no idempotentes (p. ej. reenviar el cuestionario) sin una clave de idempotencia.
 
 ### Feature Toggle
 
-> **Responsable:** Luis. Pendiente de implementación (CG-101).
+> **Responsable:** Luis (PR #45, CG-101).
 
-- **Funcionalidad que se prende o apaga:** _pendiente_
-- **Propiedad y variable de entorno:** _pendiente_
-- **Valor por defecto y por qué es seguro:** _pendiente_
-- **Dónde está (ruta y clase):** _pendiente_
-- **Trade-off:** _pendiente_
-- **Evidencia (prueba o captura):** _pendiente de evidencia_
+- **Propósito:** apagar o encender el modo estricto del torniquete sin recompilar la imagen.
+- **Funcionalidad que se prende o apaga:** sin estado en Redis, el ingreso se niega (`RED`, `Access Denied: Status unavailable`) en lugar de permitirse.
+- **Propiedad y variable de entorno:** `circleguard.features.strict-gate.enabled` / `CIRCLEGUARD_FEATURES_STRICT_GATE_ENABLED` (*relaxed binding* de Spring; el cambio requiere reiniciar el pod).
+- **Valor por defecto y por qué es seguro:** `false`, en `application.yml` y en el `@Value` (`${circleguard.features.strict-gate.enabled:false}`). Conserva el comportamiento original; si Redis pierde las claves, el modo estricto negaría el ingreso a todos.
+- **Dónde está (ruta y clase):** `services/circleguard-gateway-service/src/main/java/com/circleguard/gateway/service/QrValidationService.java` (campo `strictGateEnabled`).
+- **Cómo se prueba:** `QrValidationServiceTest`, 3 casos: apagado sin estado (permite), encendido sin estado (niega), encendido con `ACTIVE` (permite). El PR #45 corrió `./gradlew test` en verde ([`agil/sprint-2.md`](agil/sprint-2.md) §3.4).
+- **Trade-off:** deuda de toggles viejos (hay que eliminarlo cuando se decida), combinaciones sin prueba (p. ej. estado `SUSPECT` en modo estricto: pendiente de evidencia) y cambio solo con reinicio.
 
 ## Para la sustentación
 

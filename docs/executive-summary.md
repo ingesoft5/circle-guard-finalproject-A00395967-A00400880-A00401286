@@ -26,11 +26,11 @@ Users reach Traefik over HTTPS; nginx (`web`) proxies to the 8 services, which u
 | Unit-test coverage (JaCoCo) | auth 98.1 %, identity 94.1 %, promotion 81.4 %, form 97.7 %, gateway 88.9 % (target ≥ 60 %, enforced by the build) | `docs/pruebas/cobertura.md` |
 | E2E tests | 3 Playwright flows (login, questionnaire, campus access) gate promotion to stage | `docs/pruebas/e2e.md` |
 | Security | Trivy blocks fixable CRITICAL findings; 3 Spring CVEs accepted temporarily, review date 2026-12-20 | `docs/change-management/riesgos-aceptados.md` |
-| Load test (Locust) vs. target | [TBD] | pending consolidated report (CG-111) |
-| ZAP findings | [TBD] | pending consolidated report (CG-111) |
-| Trivy totals per image | [TBD] | pending consolidated report (CG-111) |
-| Real Azure cost vs. estimate | [TBD] | `docs/infra/costos.md` |
-| Rollback exercise (N → N-1 → N) | [TBD] | `docs/change-management/rollback.md` |
+| Load test (Locust) vs. target | Normal load (30 users, 3 min): p95 160 ms, 0 % errors. Stress (200 users, 5 min): p95 160 ms, 0.55 % errors; the HPA scaled to 2 replicas | `tests/performance/results/ANALISIS.md` |
+| ZAP findings | Baseline scan on dev (build #3): 0 FAIL rules; 14 alert types (1 High, 2 Medium, 9 Low, 2 Info) | `docs/evidencia/sprint-2/README.md` §5, `docs/pruebas/informe-consolidado.md` §5 |
+| Trivy totals per image | 9 images (build #3): 0 CRITICAL; 220 HIGH (212 with a fix available), which do not block the build | `docs/pruebas/informe-consolidado.md` §6 |
+| Real Azure cost vs. estimate | No real figure available: Azure Cost Management has no data for the new account | `docs/infra/costos.md` |
+| Rollback exercise (N → N-1 → N) | Production rolled back from `v1.2.0` to `v1.1.0` (build #2 of `circleguard-rollback`); `v1.1.0` and `v1.2.0` were both released to prod | `docs/evidencia/sprint-2/README.md` §1 and §6, `docs/change-management/rollback.md` |
 
 ## Lessons learned
 

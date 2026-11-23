@@ -247,3 +247,75 @@ El quality gate, la publicación en Nexus, los despliegues, los E2E y las notifi
 - **La revisión humana atrapó problemas reales**, como el choque entre #24 y #17.
 
 **Lección:** la IA acelera mucho cuando cada agente tiene un alcance cerrado y se verifica; sin esa disciplina, el trabajo se mezcla y hay que separarlo a mano.
+
+## Luis Cadena: Sprint 2, coordinación, change management y documentación
+
+*Sesiones del 17 al 22 de noviembre de 2026.*
+
+### Herramientas y para qué
+
+| Herramienta | Uso |
+|---|---|
+| Claude (chat, modelo Opus) | Orquestador y validador. Armó el backlog del Sprint 2 en Jira a partir del enunciado, diseñó los prompts por integrante, revisó diffs y logs de Jenkins y me explicó cada paso para la sustentación. |
+| Claude Code (CLI, sin interacción) | Ejecutó las tareas de documentación y las técnicas pequeñas, una por worktree, con el script `cg-agents.sh`. El modelo dependió de la dificultad: Haiku para lo mecánico, Sonnet para documentación y código simple, y Opus solo para el workflow de CI (`pr-size`). |
+
+### Reglas que se cumplieron
+
+- **Ningún agente hizo commit, push ni PR.** El script bloquea `git commit`, `git push`, `gh`, `terraform apply`, `kubectl` y `helm install`. Yo revisé cada diff e hice cada commit a mi nombre, **sin `Co-Authored-By`** ni marcas de IA.
+- Antes de cada commit el script revisa tres cosas: que el cambio tenga 400 líneas o menos, que no haya secretos y que el mensaje siga Conventional Commits.
+- Las verificaciones que la IA no podía hacer las corrí yo:
+  - `docker build` y `trivy image` de la imagen web;
+  - `curl` al actuator (404) y a `/healthz` (200);
+  - `./gradlew test` del Feature Toggle;
+  - el rollback real en Jenkins.
+
+### Errores de la IA que detecté y corregí
+
+1. **CG-118, imagen web.** El agente propuso `apk upgrade` sobre `nginx-unprivileged:1.27-alpine`. Trivy dio 0 CRITICAL, pero advirtió que Alpine 3.21 ya no tiene soporte. Cambié la base a `1.29-alpine` (Alpine 3.23). Esa base traía un CVE nuevo en `brotli-libs`, que fijé a la versión corregida. Lección: un escaneo en 0 no basta si el sistema base no tiene soporte.
+2. **Worktrees desactualizados.** Agentes que partían de un `main` viejo afirmaron que "no existe Terraform ni Helm" y dejaron secciones como pendientes. Además, sus PR fallaban en Jenkins por `No such property: cgTrivy`, porque la librería se carga desde la rama del PR. Lo corregí actualizando cada rama con `main` antes de regenerar el documento.
+3. **Dato falso en el informe de pruebas.** El agente afirmó que `qr.expiration` valía 300. Lo verifiqué en el código y vale 300000 ms (corregido en el PR #24).
+4. **IPs en la documentación.** El manual de operaciones incluía las IPs públicas de las herramientas y del clúster. Las reemplacé por marcadores (`<registro-nexus>`, `<ip-tools>`).
+5. **El check `pr-size` habría bloqueado PR legítimos.** El workflow no excluía `.terraform.lock.hcl` ni los resultados de Locust. Lo vi al revisar los PR de Darío y lo corregí antes del merge.
+6. **Credenciales en el chat.** Un integrante compartió credenciales reales en el grupo y yo las pegué en la conversación con la IA. Se acordó borrar el mensaje y rotarlas después de la sustentación, empezando por el service principal de Azure.
+
+### Qué aprendí
+
+- La IA acelera la redacción y el código repetitivo, pero **la evidencia la tiene que generar una persona**: builds, escaneos, `curl`, pruebas y capturas.
+- Pedirle a la IA que escriba "pendiente de evidencia" en lugar de suponer evitó varias afirmaciones falsas en la documentación.
+- Separar responsabilidades funcionó: la IA propone, yo verifico y apruebo, y otro integrante revisa el PR.
+
+## Luis Cadena: Sprint 2, coordinación, change management y documentación
+
+*Sesiones del 17 al 22 de noviembre de 2026.*
+
+### Herramientas y para qué
+
+| Herramienta | Uso |
+|---|---|
+| Claude (chat, modelo Opus) | Orquestador y validador. Armó el backlog del Sprint 2 en Jira a partir del enunciado, diseñó los prompts por integrante, revisó diffs y logs de Jenkins y me explicó cada paso para la sustentación. |
+| Claude Code (CLI, sin interacción) | Ejecutó las tareas de documentación y las técnicas pequeñas, una por worktree, con el script `cg-agents.sh`. El modelo dependió de la dificultad: Haiku para lo mecánico, Sonnet para documentación y código simple, y Opus solo para el workflow de CI (`pr-size`). |
+
+### Reglas que se cumplieron
+
+- **Ningún agente hizo commit, push ni PR.** El script bloquea `git commit`, `git push`, `gh`, `terraform apply`, `kubectl` y `helm install`. Yo revisé cada diff e hice cada commit a mi nombre, **sin `Co-Authored-By`** ni marcas de IA.
+- Antes de cada commit el script revisa tres cosas: que el cambio tenga 400 líneas o menos, que no haya secretos y que el mensaje siga Conventional Commits.
+- Las verificaciones que la IA no podía hacer las corrí yo:
+  - `docker build` y `trivy image` de la imagen web;
+  - `curl` al actuator (404) y a `/healthz` (200);
+  - `./gradlew test` del Feature Toggle;
+  - el rollback real en Jenkins.
+
+### Errores de la IA que detecté y corregí
+
+1. **CG-118, imagen web.** El agente propuso `apk upgrade` sobre `nginx-unprivileged:1.27-alpine`. Trivy dio 0 CRITICAL, pero advirtió que Alpine 3.21 ya no tiene soporte. Cambié la base a `1.29-alpine` (Alpine 3.23). Esa base traía un CVE nuevo en `brotli-libs`, que fijé a la versión corregida. Lección: un escaneo en 0 no basta si el sistema base no tiene soporte.
+2. **Worktrees desactualizados.** Agentes que partían de un `main` viejo afirmaron que "no existe Terraform ni Helm" y dejaron secciones como pendientes. Además, sus PR fallaban en Jenkins por `No such property: cgTrivy`, porque la librería se carga desde la rama del PR. Lo corregí actualizando cada rama con `main` antes de regenerar el documento.
+3. **Dato falso en el informe de pruebas.** El agente afirmó que `qr.expiration` valía 300. Lo verifiqué en el código y vale 300000 ms (corregido en el PR #24).
+4. **IPs en la documentación.** El manual de operaciones incluía las IPs públicas de las herramientas y del clúster. Las reemplacé por marcadores (`<registro-nexus>`, `<ip-tools>`).
+5. **El check `pr-size` habría bloqueado PR legítimos.** El workflow no excluía `.terraform.lock.hcl` ni los resultados de Locust. Lo vi al revisar los PR de Darío y lo corregí antes del merge.
+6. **Credenciales en el chat.** Un integrante compartió credenciales reales en el grupo y yo las pegué en la conversación con la IA. Se acordó borrar el mensaje y rotarlas después de la sustentación, empezando por el service principal de Azure.
+
+### Qué aprendí
+
+- La IA acelera la redacción y el código repetitivo, pero **la evidencia la tiene que generar una persona**: builds, escaneos, `curl`, pruebas y capturas.
+- Pedirle a la IA que escriba "pendiente de evidencia" en lugar de suponer evitó varias afirmaciones falsas en la documentación.
+- Separar responsabilidades funcionó: la IA propone, yo verifico y apruebo, y otro integrante revisa el PR.
