@@ -87,7 +87,7 @@ Las 3 alertas se dispararon y se resolvieron en `circleguard-dev`: `CircleGuardS
 - **Secretos:** generados por Terraform en Key Vault y copiados al clúster con `create-secrets.sh`; ninguno está en el repo ([`infra/secretos.md`](infra/secretos.md)).
 - **RBAC:** Jenkins accede al clúster con una ServiceAccount y un RBAC acotado (`infra/k8s/jenkins-rbac.yaml`, `jenkins-access.sh`).
 - **TLS:** Ingress de Traefik con certificados de cert-manager (`ClusterIssuer letsencrypt-prod`) en los tres ambientes.
-- **Superficie web:** ZAP encontró un hallazgo alto (nginx publica su versión; detección por versión, confianza media) y alertas medias y bajas de cabeceras HTTP; la corrección propuesta (`server_tokens off;`, cabeceras de endurecimiento e imagen base actualizada) queda **pendiente**.
+- **Superficie web:** ZAP encontró un hallazgo alto (nginx publica su versión; detección por versión, confianza media) y alertas medias y bajas de cabeceras HTTP; la corrección propuesta (`server_tokens off;`, cabeceras de endurecimiento e imagen base actualizada) queda registrada como mejora; no se aplicó por el congelamiento del 22/11.
 
 ### E2.7 · Pruebas avanzadas
 
@@ -106,7 +106,7 @@ La convención de versiones separa `vX.Y.Z-SNAPSHOT.<build>` (sin validar, solo 
 
 **Compuertas en acción.** El build #1 de `main` falló en las E2E sobre dev por un CORS 403 y no llegó a producción; el PR #84 lo corrigió con 10 líneas en el nginx del chart ([`registro-cambios.md`](change-management/registro-cambios.md), [`agil/sprint-2.md`](agil/sprint-2.md) §2.2). `v1.1.0` llegó a prod con el build #2 (aprobó Darío) y `v1.2.0` con el build #3. El rollback (build #2 de `circleguard-rollback`, prod de `v1.2.0` a `v1.1.0`) lo lanzó Luis y lo aprobó Simón Reyes.
 
-**Documentos:** plan de rollback en [`change-management/rollback.md`](change-management/rollback.md) y registro por ambiente en [`change-management/registro-cambios.md`](change-management/registro-cambios.md). Hay releases publicadas `v1.1.0` y `v1.2.0`; `CHANGELOG.md` **no existe en la raíz del repo** (pendiente de evidencia: ningún hecho del cierre lo resuelve).
+**Documentos:** plan de rollback en [`change-management/rollback.md`](change-management/rollback.md) y registro por ambiente en [`change-management/registro-cambios.md`](change-management/registro-cambios.md). Hay releases publicadas `v1.1.0` y `v1.2.0`; las release notes las genera git-cliff en la etapa *Tag + release notes* (`jenkins/vars/cgRelease.groovy`) y se publican en GitHub Releases (`v1.0.0` a `v1.2.0`); no se versiona un `CHANGELOG.md` en la raíz.
 
 ### E2.9 · Documentación completa
 
@@ -126,7 +126,7 @@ La convención de versiones separa `vX.Y.Z-SNAPSHOT.<build>` (sin validar, solo 
 
 ### E2.10 · Presentación
 
-El esqueleto y el guion de 20 minutos, con tiempos por persona (Luis 6 min, Darío 8, Simón 6), diapositiva de respuesta a las observaciones del profesor, preguntas probables y lista de verificación, están en [`presentacion-parte-2.md`](presentacion-parte-2.md). Ese documento aún tiene marcas **[pendiente]** que se resuelven con las capturas y enlaces de la evidencia antes de la sustentación.
+El esqueleto y el guion de 20 minutos, con tiempos por persona (Luis 6 min, Darío 8, Simón 6), diapositiva de respuesta a las observaciones del profesor, preguntas probables y lista de verificación, están en [`presentacion-parte-2.md`](presentacion-parte-2.md). Las capturas que usa están en `docs/evidencia/sprint-2/`; el guion se ajusta en el ensayo previo a la sustentación.
 
 ---
 
@@ -134,7 +134,7 @@ El esqueleto y el guion de 20 minutos, con tiempos por persona (Luis 6 min, Dar�
 
 | Observación (Parte 1) | Respuesta en la Parte 2 | Evidencia |
 |---|---|---|
-| **Tamaño de los PR.** Un PR de ~20 000 líneas no se puede revisar. | Regla automática `pr-size` en GitHub Actions (etiquetas `size/S` a `size/XL`, falla sobre 400 líneas salvo `size/exception` con justificación), documentada en `branching.md` y en la plantilla de PR. | PR #49 (fusionado el 22/11) y 48 PR integrados con la regla activa, todos de 400 líneas o menos ([`agil/sprint-2.md`](agil/sprint-2.md) §4.2); regla en [`agil/branching.md`](agil/branching.md). Que `pr-size` sea check obligatorio del ruleset y la captura de un bloqueo: **pendiente de evidencia**. |
+| **Tamaño de los PR.** Un PR de ~20 000 líneas no se puede revisar. | Regla automática `pr-size` en GitHub Actions (etiquetas `size/S` a `size/XL`, falla sobre 400 líneas salvo `size/exception` con justificación), documentada en `branching.md` y en la plantilla de PR. | PR #49 (fusionado el 22/11) y 48 PR integrados con la regla activa, todos de 400 líneas o menos ([`agil/sprint-2.md`](agil/sprint-2.md) §4.2); regla en [`agil/branching.md`](agil/branching.md). `pr-size` es check obligatorio del ruleset "Proteger main" y el PR de prueba #95 (500 líneas, cerrado sin fusionar) muestra el bloqueo (ver `evidencia/sprint-2/pr-size-bloqueo.png`). |
 | **Nomenclatura de versiones.** Distinguir una versión sin validar de una validada. | `vX.Y.Z-SNAPSHOT.<build>` frente a `vX.Y.Z`; la release es la misma imagen re-etiquetada. El build #1 (`v1.1.0-SNAPSHOT.1`) falló en E2E y nunca generó release, lo que evidencia la regla. | [`versionado-y-releases.md`](change-management/versionado-y-releases.md), [`evidencia/sprint-2/README.md`](evidencia/sprint-2/README.md) §1 y §2. |
 
 ---
@@ -148,11 +148,11 @@ Estado de los documentos que este informe necesita, al cierre del 22/11 (se cita
 | [`executive-summary.md`](executive-summary.md) (CG-110) | Existe; conserva filas "[TBD]" de resultados que este informe resuelve |
 | [`pruebas/informe-consolidado.md`](pruebas/informe-consolidado.md) (CG-111) | Existe; su §9 lista evidencia pendiente (Sonar, JaCoCo final, perfilado de auth) |
 | [`change-management/rollback.md`](change-management/rollback.md) (CG-104) y [`registro-cambios.md`](change-management/registro-cambios.md) (CG-105) | Existen; el registro conserva campos por confirmar en Jenkins (hora del build #1, aprobador del build #3) |
-| `CHANGELOG.md` (CG-103) | No existe en la raíz: pendiente de evidencia |
+| Release notes (CG-103) | En GitHub Releases (`v1.1.0`, `v1.2.0`), generadas por git-cliff |
 | Circuit Breaker, Retry y Feature Toggle en [`patrones.md`](patrones.md) | Completos (PR #72, #73 y #45) |
 | Review, retrospectiva y burndown en [`agil/sprint-2.md`](agil/sprint-2.md) | Completos |
 | Costo real en [`infra/costos.md`](infra/costos.md) | Sin cifra real: Cost Management sin datos en la cuenta nueva (ver E2.9) |
-| [`presentacion-parte-2.md`](presentacion-parte-2.md) (CG-113) | Esqueleto con marcas **[pendiente]** por resolver antes de sustentar |
+| [`presentacion-parte-2.md`](presentacion-parte-2.md) (CG-113) | Guion listo; se ajusta en el ensayo |
 
 ---
 
