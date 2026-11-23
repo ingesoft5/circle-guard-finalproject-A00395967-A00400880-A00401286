@@ -18,7 +18,7 @@
 
 ## 1. Resumen ejecutivo
 
-El resumen ejecutivo en inglés (CG-110) está en [`executive-summary.md`](executive-summary.md); sus filas de resultados que dicen "[TBD]" se completan en este informe y en [`pruebas/informe-consolidado.md`](pruebas/informe-consolidado.md). A continuación, el resumen en español.
+El resumen ejecutivo en inglés (CG-110) está en [`executive-summary.md`](executive-summary.md); sus filas de resultados ya están completas, con los mismos datos de este informe y de [`pruebas/informe-consolidado.md`](pruebas/informe-consolidado.md). A continuación, el resumen en español.
 
 **Problema.** En la Parte 1, CircleGuard (8 microservicios Spring Boot y un cliente web) corría con Docker Compose en 4 VMs de Azure, con infraestructura creada por scripts Bash ([`topologia.md`](infra/topologia.md)). Faltaba infraestructura reproducible, despliegue declarativo, seguridad continua, observabilidad y control sobre el tamaño de los cambios y las versiones.
 
@@ -145,7 +145,7 @@ Estado de los documentos que este informe necesita, al cierre del 22/11:
 
 | Documento | Estado |
 |---|---|
-| [`executive-summary.md`](executive-summary.md) (CG-110) | Existe; conserva filas "[TBD]" de resultados que este informe resuelve |
+| [`executive-summary.md`](executive-summary.md) (CG-110) | Existe; completo, sin filas "[TBD]" |
 | [`pruebas/informe-consolidado.md`](pruebas/informe-consolidado.md) (CG-111) | Existe; su §9 registra lo que queda para el siguiente sprint (detalle de Sonar, re-medición de JaCoCo y perfilado de auth) |
 | [`change-management/rollback.md`](change-management/rollback.md) (CG-104) y [`registro-cambios.md`](change-management/registro-cambios.md) (CG-105) | Existen; el registro conserva campos por confirmar en Jenkins (hora del build #1, aprobador del build #3) |
 | Release notes (CG-103) | En GitHub Releases (`v1.1.0`, `v1.2.0`), generadas por git-cliff |
