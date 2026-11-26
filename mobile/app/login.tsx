@@ -73,7 +73,7 @@ export default function LoginScreen() {
               <Shield size={40} color="#0891B2" />
             </View>
             <Text style={styles.title}>Welcome Back</Text>
-            <Text style={styles.subtitle}>Sign in with your University ID</Text>
+            <Text style={styles.subtitle}>Sign in with your Icesi University ID</Text>
           </View>
 
           <View style={styles.form}>
